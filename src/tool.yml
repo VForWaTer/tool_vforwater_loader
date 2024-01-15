@@ -1,25 +1,24 @@
 tools:
-  foobar:
-    title: Foo Bar
-    description: A dummy tool to exemplify the YAML file
-    version: 0.1
+  vforwater_loader:
+    title: Loader for datasets stored in V-FOR-WaTer 
+    description: This tool will use `metacatalog` to load datasets stored in V-FOR-WaTer.
     parameters:
-      foo_int: 
-        type: integer
-      foo_float:
-        type: float
-      foo_string:
-        type: string
-      foo_enum:
-        type: enum
-        values:
-          - foo
-          - bar
-          - baz
-      foo_array:
+      dataset_ids: 
         type: integer
         array: true
-      foo_matrix:
-        type: file
-      foo_csv:
-        type: file
+      reference_area:
+        type: struct
+        description: |
+          The reference area can be any valid GeoJSON POLYGON geometry. Datasets that contain areal information will be clipped to this area.
+          Be aware, that some remote sensing datasets may have global coverage. If you omit this parameter, the full dataset will be loaded,
+          if the hosting server allows it.
+          Please make sure, that you only pass one FEATURE. FeatureCollections are not supported yet.
+        optional: true
+      start_date:
+        type: datetime
+        description: |
+          The start date of the datasetm, if a time dimension applies to the dataset.
+      end_date:
+        type: datetime
+        description: |
+          The end date of the datasetm, if a time dimension applies to the dataset.
