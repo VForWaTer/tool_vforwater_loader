@@ -1,5 +1,3 @@
-# tool_template_python
+# V-FOR-WaTer data loader
 
-This is the template for a generic containerized Python tool following the [Tool Specification](https://vforwater.github.io/tool-specs/) for reusable research software using Docker.
-
-This template can be used to generate new Github repositories from it.
+This is a containerized Python tool to download data from [V-FOR-WaTer](https://portal.vforwater.de) following the [Tool Specification](https://vforwater.github.io/tool-specs/) for reusable research software using Docker.
