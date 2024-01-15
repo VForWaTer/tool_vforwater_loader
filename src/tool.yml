@@ -22,3 +22,10 @@ tools:
         type: datetime
         description: |
           The end date of the datasetm, if a time dimension applies to the dataset.
+      connection:
+        type: string
+        optional: true
+        description: | 
+          To connect to the V-FOR-WaTer database, you need to provide a connection URI. These URIs should be saved to an evnironment variable
+          called `VFW_POSTGRES_URI`. Alternatively, you can pass in a file path to an `.env` file that contains the connection URI. 
+          Passing the string directly as this parameter is technically also possible, but not recommended.

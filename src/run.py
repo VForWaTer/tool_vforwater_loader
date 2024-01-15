@@ -1,5 +1,7 @@
 import os
 from datetime import datetime as dt
+from dotenv import load_dotenv
+from pathlib import Path
 
 from json2args import get_parameter
 
@@ -22,6 +24,22 @@ start = kwargs.get('start_date')
 end = kwargs.get('end_date')
 reference_area = kwargs.get('reference_area')
 
+# check if a connection was given and if it is a valid path
+if 'connection' in kwargs:
+    if Path(kwargs['connection']).exists():
+        load_dotenv(dotenv_path=kwargs['connection'])
+    else:
+        # it is interpreted as a connection uri
+        connection = kwargs['connection']
+else:
+    load_dotenv()
+
+# check if a connection evironment variable is given
+if 'VFW_POSTGRES_URI' in os.environ:
+    connection = os.environ['VFW_POSTGRES_URI']
+else:
+    connection = None
+
 
 # ----------------------------
 # FROM HERE, ONLY DEVELOPMENT
@@ -34,10 +52,13 @@ The following information has been submitted to the tool:
 
 START DATE:         {start}
 END DATE:           {end}
-REFERENCE AREA:     {reference_area is None}
+REFERENCE AREA:     {reference_area is not None}
 
 DATASET IDS:
 {', '.join(map(str, dataset_ids))}
+
+DATABASE CONNECTION: {connection is not None}
+DATABASE URI:        {connection[:10] + '***' + connection[-6:] if connection is not None else 'N.A.'}
 
 """
 
