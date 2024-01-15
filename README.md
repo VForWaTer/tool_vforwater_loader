@@ -1,6 +1,7 @@
 # tool_template_python
 
 [![Docker Image CI](https://github.com/VForWaTer/tool_vforwater_loader/actions/workflows/docker-image.yml/badge.svg)](https://github.com/VForWaTer/tool_vforwater_loader/actions/workflows/docker-image.yml)
+[![DOI](https://zenodo.org/badge/743434463.svg)](https://zenodo.org/doi/10.5281/zenodo.10513947)
 
 This is a containerized Python tool to download data from [V-FOR-WaTer](https://portal.vforwater.de) following the [Tool Specification](https://vforwater.github.io/tool-specs/) for reusable research software using Docker.
 
