@@ -13,6 +13,7 @@ RUN pip install GDAL==$(gdal-config --version | awk -F'[.]' '{print $1"."$2}')
 RUN pip install geopandas==0.14.2
 RUN pip install python-dotenv==1.0.0
 RUN pip install xarray==2023.6.0
+RUN pip install pyarrow==11.0.0
 
 # install the needed version for metacatalog
 RUN pip install metacatalog==0.9.0
