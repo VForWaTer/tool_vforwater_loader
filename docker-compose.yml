@@ -1,4 +1,4 @@
-version: '3'
+version: '3.8'
 services:
   db:
     image: postgis/postgis:15-3.4
@@ -21,3 +21,6 @@ services:
       - db
     environment:
       METACATALOG_URI: postgresql://postgres:postgres@db:5432/metacatalog
+    volumes:
+      - ./in:/in
+      - ./out:/out
