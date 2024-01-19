@@ -20,4 +20,4 @@ services:
     links:
       - db
     environment:
-      METACATALOG_URI=postgresql://postgres:postgres@db:5432/metacatalog
+      METACATALOG_URI: postgresql://postgres:postgres@db:5432/metacatalog
