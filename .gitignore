@@ -131,3 +131,4 @@ dmypy.json
 # project specific
 out
 pg_data
+.DS_Store

@@ -2,11 +2,11 @@
     "vforwater_loader": {
         "parameters": {
             "dataset_ids": [
-                42,
-                43
+                1,
+                2
             ],
             "start_date": "2000-01-01T12:00:00+01",
-            "end_date": "2015-01-01T12:00:00+01",
+            "end_date": "2014-01-01T12:00:00+01",
             "reference_area": {
                 "type": "Feature",
                 "geometry": {
