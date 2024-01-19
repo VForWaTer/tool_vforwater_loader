@@ -9,6 +9,38 @@ This is a containerized Python tool to download data from [V-FOR-WaTer](https://
 
 The parameters and connection will be exaplained here.
 
+
+## Development and local
+
+Either for development or local usage of this container, there is a `docker-compose.yml` file in there.
+It starts a PostgreSQL  / PostGIS database, which persists its data into a local `pg_data` folder, **that you need to create first**.
+The `loader` service will run the tool, with the local `./in` and `./out` mounted into the tool container and
+the database correctly connected.
+That means, you can adjust the examples in `./in` and run the container using docker compose:
+
+```
+docker compose up -d
+```
+
+Obviously, on first run, there won't be a [metacatalog](https://github.com/vforwater/metacatalog) initialized. To do that
+by hand, you can run the loader service but overwrite the default container command with a python console:
+
+```
+docker compose run --rm -it loader python
+```
+
+Then run:
+
+```python
+from metacatalog import api
+session = api.connect_database()
+api.create_tables(session)
+api.populate_defaults(session)
+exit()
+```
+
+If you want to run or test the tool against an existing database, change the `METACATALOG_URI` in the `docker-compose.yml`.
+
 ## Structure
 
 This container implements a common file structure inside container to load inputs and outputs of the 
