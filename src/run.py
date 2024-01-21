@@ -1,16 +1,15 @@
 import os
 from datetime import datetime as dt
 from pathlib import Path
-import shutil
-import json
+import traceback
+import warnings
 
 from json2args import get_parameter
 from dotenv import load_dotenv
 from metacatalog import api
 from tqdm import tqdm
 
-import pandas as pd
-import xarray as xr
+from loader import load_entry
 
 # parse parameters
 kwargs = get_parameter()
@@ -60,47 +59,24 @@ logs = []
 # load the datasets
 for dataset_id in tqdm(dataset_ids):
     try:
-        results = api.find_entry(session, id=dataset_id, as_result=False)
-        if len(results) > 1:
-            raise Exception(f"Found more than one dataset with id {dataset_id}. (len = {len(results)})")
-        elif len(results) == 0:
-            raise Exception(f"Found no dataset with id {dataset_id}.")
+        entry = api.find_entry(session, id=dataset_id, return_iterator=True).one()
         
-        # load the dataset
-        entry = results[0]
+        # load the entry and return the data path
+        #with warnings.catch_warnings(record=True) as warns:
+            #warnings.simplefilter("ignore")
+        out_path = load_entry(entry, start=start, end=end, reference_area=reference_area)
+            #print(warns)
 
-        # load the data
-        data = entry.get_data(start=start, end=end)
-        name = f"/out/{entry.variable.name.replace(' ', '_')}_{entry.id}"
+        # TODO: replace by logger
+        logs.append(f"LOADED DATASET {dataset_id} TO {out_path}")
 
-        # pandas
-        if isinstance(data, pd.DataFrame):
-            # save to output folder
-            data.to_parquet(f"{name}.parquet")
-            logs.append(f"Saved dataset ID={entry.id} to {name}.parquet")
-        
-        # xarray
-        elif isinstance(data, xr.Dataset):
-            data.to_netcdf(f"{name}.nc")
-            logs.append(f"Saved dataset ID={entry.id} to {name}.nc")
-        
-        # path
-        elif isinstance(data, str):
-            if Path(data).exists():
-                new_loc = Path('/out') / Path(data).name
-                shutil.copy(data, str(new_loc))
-                logs.append(f"Saved dataset ID={entry.id} to {str(new_loc)}")
-        
-        # finally save the metadata - only JSON for now
-        with open(f"{name}.json", 'w') as f:
-            json.dump(entry.to_dict(deep=True, stringify=True), f, indent=4)
-
-            
     except Exception as e:
         errors.append(f"ERRORED STEP LOAD DATASET: {str(e)}")
+
+        # TODO: replace by logger
+        with open(f'/out/errors_id_{dataset_id}.txt', 'w') as f:
+            traceback.print_exc(file=f)
         continue
-
-
 
 # ----------------------------
 # output report
@@ -137,9 +113,6 @@ We are on it.
 if len(errors) > 0:
     MSG += "\n\nERRORS:\n-------\nUnfortunately, there were errors during the processing of this tool. Please read them carefully:\n\n"
     MSG += "\n\n".join(errors)
-
-    with open('/out/errors.txt', 'w') as f:
-        f.write("\n".join(errors))
 
 # print out the report
 print(MSG)
