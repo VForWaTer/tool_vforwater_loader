@@ -1,7 +1,7 @@
 tools:
   vforwater_loader:
-    title: Loader for datasets stored in V-FOR-WaTer 
-    description: This tool will use `metacatalog` to load datasets stored in V-FOR-WaTer.
+    title: Loader for datasets stored in a metacatalog instance 
+    description: This tool will use `metacatalog` to load datasets stored in a metacatalog instance, like V-FOR-WaTer.
     parameters:
       dataset_ids: 
         type: integer
