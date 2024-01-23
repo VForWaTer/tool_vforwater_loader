@@ -5,8 +5,10 @@ on: push
 jobs:
   release:
     name: Create Github release
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     if: startsWith(github.event.ref, 'refs/tags/v')
+    permissions:
+        contents: write
 
     steps:
       - name: Checkout
