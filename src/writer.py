@@ -33,6 +33,7 @@ def dispatch_save_file(entry: Entry, data: Union[pd.DataFrame, DaskDataFrame, xr
     target_path = Path(base_path) / f"{entry.variable.name.replace(' ', '_')}_{entry.id}"
 
     # define the exception handler
+    # TODO exception handler is not the right name anymore
     def exception_handler(future: Future):
         exc = future.exception()
         if exc is not None:
@@ -47,9 +48,12 @@ def dispatch_save_file(entry: Entry, data: Union[pd.DataFrame, DaskDataFrame, xr
     if isinstance(data, (pd.DataFrame, DaskDataFrame)):
         target_name = f"{target_path}.parquet"
         future = executor.submit(dataframe_to_parquet_saver, data, target_name)
-        future.add_done_callback(exception_handler)
     else:
         future = executor.submit(raw_data_copy_saver, entry, target_path)
+
+    # add the exception handler
+    future.add_done_callback(exception_handler)
+    return future
 
 
 def dataframe_to_parquet_saver(data: Union[pd.DataFrame, DaskDataFrame], target_name: str) -> str:
