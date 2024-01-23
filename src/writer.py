@@ -85,20 +85,18 @@ def raw_data_copy_saver(entry: Entry, target_name: Union[str, Path]) -> str:
     
     # get the path
     source_path = Path(entry.datasource.path)
-
-    # check if that exists
-    if not source_path.exists():
-        logger.error(f"Could not find the raw data source {source_path}.")
-        return None
     
     # simply copy the data over
     target_name = Path(target_name) / 'raw' / source_path.name
-    if not target_name.exists():
+    try:
         target_name.mkdir(parents=True, exist_ok=True)
         if '*' in str(source_path):            
             shutil.copytree(str(source_path), str(target_name))
         else:
             shutil.copy(str(source_path), str(target_name))
+    except FileNotFoundError:
+        logger.error(f"Could not copy raw data from {source_path} [NOT FOUND].")
+        return None
     
     logger.info(f"Finished copying raw data from {source_path} to {target_name}.")
     return str(source_path)
