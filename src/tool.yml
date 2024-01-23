@@ -1,7 +1,12 @@
 tools:
   vforwater_loader:
     title: Loader for datasets stored in a metacatalog instance 
-    description: This tool will use `metacatalog` to load datasets stored in a metacatalog instance, like V-FOR-WaTer.
+    description: |
+      This tool will use `metacatalog` to load datasets stored in a metacatalog instance, like V-FOR-WaTer.
+      The requested datasources will be made available in the output directory of the tool. Areal datasets
+      will be clipped to the **bounding box** of the reference area and multi-file sources are preselected
+      to fall into the time range specified. 
+      Note that exact extracts (specific time step, specific area) are not yet supported for areal datasets.
     parameters:
       dataset_ids: 
         type: integer
