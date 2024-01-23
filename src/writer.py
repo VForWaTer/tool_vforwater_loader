@@ -48,6 +48,9 @@ def dispatch_save_file(entry: Entry, data: Union[pd.DataFrame, DaskDataFrame, xr
     if isinstance(data, (pd.DataFrame, DaskDataFrame)):
         target_name = f"{target_path}.parquet"
         future = executor.submit(dataframe_to_parquet_saver, data, target_name)
+    elif isinstance(data, xr.Dataset):
+        target_name = f"{target_path}.nc"
+        future = executor.submit(xarray_to_netcdf_saver, data, target_name)
     else:
         future = executor.submit(raw_data_copy_saver, entry, target_path)
 
@@ -64,6 +67,21 @@ def dataframe_to_parquet_saver(data: Union[pd.DataFrame, DaskDataFrame], target_
         data.to_parquet(target_name, write_index=False)
     else:
         logger.error(f"Could not save {target_name} as it is not a pandas or dask dataframe. Got a {type(data)} instead.")
+    t2 = time.time()
+
+    # after finishing add a log message
+    logger.info(f"Finished writing {target_name} after {t2-t1:.2f} seconds.")
+
+    return target_name
+
+
+def xarray_to_netcdf_saver(data: xr.Dataset, target_name: str) -> str:
+    # the netCDF is may already be written by the extracting process if CDO was used
+    if Path(target_name).exists():
+        logger.debug(f"writer.xarray_to_netcdf_saver: {target_name} already exists. Skipping.")
+        return target_name
+    t1 = time.time()
+    data.to_netcdf(target_name)
     t2 = time.time()
 
     # after finishing add a log message
@@ -93,7 +111,7 @@ def raw_data_copy_saver(entry: Entry, target_name: Union[str, Path]) -> str:
     # simply copy the data over
     target_name = Path(target_name) / 'raw' / source_path.name
     try:
-        target_name.mkdir(parents=True, exist_ok=True)
+        target_name.parent.mkdir(parents=True, exist_ok=True)
         if '*' in str(source_path):            
             shutil.copytree(str(source_path), str(target_name))
         else:
