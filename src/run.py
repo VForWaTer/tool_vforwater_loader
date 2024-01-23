@@ -1,8 +1,7 @@
 import os
 from datetime import datetime as dt
 from pathlib import Path
-import traceback
-import warnings
+from concurrent.futures import ProcessPoolExecutor
 
 from json2args import get_parameter
 from dotenv import load_dotenv
@@ -10,6 +9,8 @@ from metacatalog import api
 from tqdm import tqdm
 
 from loader import load_entry
+from logger import logger
+from writer import dispatch_save_file
 
 # parse parameters
 kwargs = get_parameter()
@@ -52,37 +53,7 @@ else:
 # defaults are used
 session = api.connect_database(connection)
 
-# container for errors as thing could go wrong from here
-errors = []
-logs = []
-
-# load the datasets
-for dataset_id in tqdm(dataset_ids):
-    try:
-        entry = api.find_entry(session, id=dataset_id, return_iterator=True).one()
-        
-        # load the entry and return the data path
-        #with warnings.catch_warnings(record=True) as warns:
-            #warnings.simplefilter("ignore")
-        out_path = load_entry(entry, start=start, end=end, reference_area=reference_area)
-            #print(warns)
-
-        # TODO: replace by logger
-        logs.append(f"LOADED DATASET {dataset_id} TO {out_path}")
-
-    except Exception as e:
-        errors.append(f"ERRORED STEP LOAD DATASET: {str(e)}")
-
-        # TODO: replace by logger
-        with open(f'/out/errors_id_{dataset_id}.txt', 'w') as f:
-            traceback.print_exc(file=f)
-        continue
-
-# ----------------------------
-# output report
-
-log_messages = "\n".join([f"  - {log}" for log in logs])
-
+# initialize a new log-file by overwriting any existing one
 # build the message for now
 MSG = f"""
 This is the V-FOR-WaTer data loader report
@@ -99,28 +70,48 @@ DATASET IDS:
 DATABASE CONNECTION: {connection is not None}
 DATABASE URI:        {session.bind}
 
-PROCESSING LOGS
----------------
-{log_messages}
-
 NOTE
 ----
-The current version of the tool does not yet support clipping by reference area.
-We are on it.
+The current version of the tool does only support netCDF clips using a bounding box.
+The current version of the tool does only select files within a time range for multi-file netCDFs.
+
+Processing logs:
+----------------
 """
-
-# Add error messages
-if len(errors) > 0:
-    MSG += "\n\nERRORS:\n-------\nUnfortunately, there were errors during the processing of this tool. Please read them carefully:\n\n"
-    MSG += "\n\n".join(errors)
-
-# print out the report
-print(MSG)
-
-# save it
-with open('/out/process.txt', 'w') as f:
+with open('/out/processing.log', 'w') as f:
     f.write(MSG)
 
-# save the logs on their own
-with open('/out/logs.txt', 'w') as f:
-    f.write("\n".join(logs))
+# --------------------------------------------------------------------------- #
+# Here is the actual tool
+# load the datasets
+with ProcessPoolExecutor() as executor:
+    for dataset_id in tqdm(dataset_ids):
+        try:
+            entry = api.find_entry(session, id=dataset_id, return_iterator=True).one()
+            
+            # load the entry and return the data path
+            data = load_entry(entry, start=start, end=end, reference_area=reference_area)
+            
+            # save the intermediate data procucts here
+            # TODO the user might want to skip this, then the paths should be replaced with temporary paths
+
+            # switch the output file format
+            # TODO if this should be intermediate, we can pass a '/tmp' base_path
+            result_promise = dispatch_save_file(entry, data, executor=executor, base_path='/out')
+
+        except Exception as e:
+            logger.exception(f"ERRORED on dataset <ID={dataset_id}>")
+            continue
+    
+    # wait until all results are finished
+    executor.shutdown(wait=True)
+    logger.info(f"Pool {type(executor).__name__} finished all tasks and shutdown.")
+
+    # here to the stuff for creating a consistent dataset
+
+# --------------------------------------------------------------------------- #
+
+# print out the report
+with open('/out/processing.log', 'r') as f:
+    print(f.read())
+
