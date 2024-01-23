@@ -130,11 +130,15 @@ def load_netcdf_file(name: str, time_axis: Optional[str] = None, start: Optional
         
         # run the CDO select command
         t1 = time.time()
-        subprocess.run(['cdo', sel_cmd, fname, out_name])
+        p = subprocess.run(['cdo', sel_cmd, fname, out_name], stdout=subprocess.PIPE, text=True)
         t2 = time.time()
         
+        # use the logger to log the output
         logger.info(f"cdo {sel_cmd} {fname} {out_name}")
-        logger.info(f"took {t2-t1:.2f} seconds")
+        
+        # check if CDO had output
+        logger.info(p.stdout)
+        logger.debug(f"took {t2-t1:.2f} seconds")
     
     # return the out_path
     return out_path
