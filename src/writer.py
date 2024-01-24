@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, Optional
 import time
 from concurrent.futures import Executor, Future
 from pathlib import Path
@@ -27,10 +27,13 @@ class EntryDictSerializer(json.JSONEncoder):
         # use the default method
         return super().default(obj)
 
-
-def dispatch_save_file(entry: Entry, data: Union[pd.DataFrame, DaskDataFrame, xr.Dataset], executor: Executor, base_path: str = '/out') -> Future:
+# TODO: target path should be createable from the outside
+def dispatch_save_file(entry: Entry, data: Union[pd.DataFrame, DaskDataFrame, xr.Dataset], executor: Executor, base_path: str = '/out', target_name: Optional[str] = None) -> Future:
     # get the target_name
-    target_path = Path(base_path) / f"{entry.variable.name.replace(' ', '_')}_{entry.id}"
+    if target_name is None:
+        target_path = Path(base_path) / f"{entry.variable.name.replace(' ', '_')}_{entry.id}"
+    else:
+        target_path = Path(base_path) / target_name
 
     # define the exception handler
     # TODO exception handler is not the right name anymore

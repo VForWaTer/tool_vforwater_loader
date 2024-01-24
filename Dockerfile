@@ -9,6 +9,11 @@ RUN pip install --upgrade pip
 RUN apt-get update && apt-get install -y gdal-bin libgdal-dev
 RUN pip install GDAL==$(gdal-config --version | awk -F'[.]' '{print $1"."$2}')
 
+# Install whitebox gis
+RUN mkdir /whitebox && \
+    cd /whitebox && wget https://www.whiteboxgeo.com/WBT_Linux/WhiteboxTools_linux_amd64.zip && \
+    unzip WhiteboxTools_linux_amd64.zip
+
 # install dependecies for this tool
 RUN pip install "pandas<2.2.0"
 RUN pip install geopandas==0.14.2
@@ -34,6 +39,9 @@ COPY ./in /in
 RUN mkdir /out
 RUN mkdir /src
 COPY ./src /src
+RUN mv /whitebox/WBT /src/WBT
 
+# go to the source directory of this tool
 WORKDIR /src
-CMD ["python", "run.py"]
+RUN chmod +x ./run
+CMD ["echo", "Welcome to the tool help page.\nConfig:\n\n", "&&", "cat", "/src/tool.yml"]

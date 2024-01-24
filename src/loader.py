@@ -6,22 +6,26 @@ import glob
 import tempfile
 import subprocess
 import time
+from concurrent.futures import Executor
 
 from metacatalog.models import Entry
 import rioxarray
 import xarray as xr
 import pandas as pd
 import geopandas as gpd
+import rasterio as rio
 
 import shapely
 from pyproj import CRS
 
 from logger import logger
+from writer import dispatch_save_file
+from clip import mask_xarray_dataset
 
 
 
 # Maybe this function becomes part of metacatalog core or a metacatalog extension
-def load_entry(entry: Entry, start: Optional[datetime] = None, end: Optional[datetime] = None, reference_area = None):
+def load_entry_data(entry: Entry, executor: Executor, start: Optional[datetime] = None, end: Optional[datetime] = None, reference_area = None) -> str:
     # 1. get the path to the datasource
     path_type = entry.datasource.type.name
 
@@ -36,8 +40,12 @@ def load_entry(entry: Entry, start: Optional[datetime] = None, end: Optional[dat
     else:
         data = load_file_source(entry, start=start, end=end, time_axis=time_axis, reference_area=reference_area)
     
+    # if the dataset is not a string (file path, dispatch a save task)
+    # TODO: save the intermediate files to the /out path for now
+    data_path = dispatch_save_file(entry, data, executor=executor, base_path='/out')
+    
     # For now return here
-    return data
+    return data_path
 
 
 def load_sql_source(entry: Entry, start: Optional[datetime] = None, end: Optional[datetime] = None):
@@ -68,9 +76,14 @@ def load_file_source(entry: Entry, start: Optional[datetime] = None, end: Option
 
         # load the data into a single nc file and to a parquet file
         data = merge_multi_file_netcdf(entry=entry, path=out_path, save_nc=True, save_parquet=False)
+
+        # do the clip
+        clip_data = mask_xarray_dataset(entry=entry, path_or_data=data)
         
         # return the dataset
-        return data
+        return clip_data
+    elif path.suffix.lower() in ('.tif', '.tiff', '.dem'):
+        raise NotImplementedError('GeoTiff loader is currently not implemented, sorry.')
 
 
 def load_netcdf_file(name: str, time_axis: Optional[str] = None, start: Optional[datetime] = None, end: Optional[datetime] = None, reference_area: Optional[dict] = None) -> str:
@@ -144,12 +157,57 @@ def load_netcdf_file(name: str, time_axis: Optional[str] = None, start: Optional
     return out_path
 
 
+def load_raster_file(entry: Entry, name: str, reference_area: dict, base_path: str = '/out') -> rio.DatasetReader:
+    #DAS hier passt noch nicht zum workflow
+    #Eher alle load Funktionen dispatchen? not sure
+    # build a GeoDataFrame from the reference area
+    df = gpd.GeoDataFrame.from_features([reference_area])
+
+    # open the raster file using rasterio
+    if '*' in name:
+        fnames = glob.glob(name)
+    else:
+        fnames = [name]
+    
+    # check the amount of files to be processed
+    if len(fnames) > 1:
+        logger.debug(f"For {name} found {len(fnames)} files.")
+    elif len(fnames) == 0:
+        logger.warning(f"Could not find any files for {name}.")
+        return None
+    else:
+        logger.debug(f"Resource {name} is single file.")
+
+    # preprocess each file
+    for fname in fnames:
+        t1 = time.time()
+        with rio.open(fname, 'r') as src:
+            # do the mask
+            
+            out_raster, out_transform = rio.mask.mask(src, [df.geometry.values], crop=True)
+
+            # save the masked raster to the output folder
+            out_meta = src.meta.copy()
+        
+        # update the metadata
+        out_meta.update({
+            "height": out_raster.shape[1],
+            "width": out_raster.shape[2],
+            "transform": out_transform
+        })
+
+        # save the raster
+        out_path = Path(base_path) / Path(fname).name
+        with rio.open(str(out_path), 'w', **out_meta) as dst:
+            dst.write(out_raster)
+    
+
 def merge_multi_file_netcdf(entry: Entry, path: str, save_nc: bool = True, save_parquet: bool = True) -> pd.DataFrame:
     # check if this file should be saved
     if save_nc:
-        out_name = f'/out/{entry.variable.name.replace(" ", "_")}_{entry.id}.nc'
+        out_name = f'/out/{entry.variable.name.replace(" ", "_")}_{entry.id}_lonlatbox.nc'
     else:
-        out_name = f'{path}/merged.nc'
+        out_name = f'{path}/merged_lonlatbox.nc'
 
     # build the CDO command
     merge_cmd = ['cdo', 'mergetime', str(Path(path) / '*.nc'), out_name]
@@ -163,7 +221,7 @@ def merge_multi_file_netcdf(entry: Entry, path: str, save_nc: bool = True, save_
 
     # open the merged data
     # TODO infer time_axis from the entry and figure out a useful time_axis chunk size here
-    data = xr.open_dataset(out_name, decode_coords=True, chunks={'time': 1})
+    data = xr.open_dataset(out_name, decode_coords=True, mask_and_scale=True, chunks={'time': 1})
 
     if not save_parquet:
         return data
@@ -184,43 +242,4 @@ def merge_multi_file_netcdf(entry: Entry, path: str, save_nc: bool = True, save_
 
     return df
 
-
-def clip_netcdf_file(entry: Entry, data: xr.Dataset, reference_area: dict) -> xr.Dataset:
-    # convert reference area to GeoDataFrame
-    df = gpd.GeoDataFrame.from_features([reference_area])
-
-    # get the source name
-    name = f"{entry.datasource.path} <ID={entry.id}>"
-
-    # convert to coordinate reference system
-    if data.rio.crs is None:
-        logger.warning(f"The netCDF {name} does not contain a coordinate reference system. This is bad. Trying to figure something out.")
-
-        # create a dict of the data_vars
-        vars = {name: data[name].attrs for name in data.data_vars if 'crs' in name.lower()}
-        logger.debug(f"Found {len(vars)} canidates for CRS in {name} variable attributes.")
-        
-        # filter for the first occurence of spatial_ref
-        attr_name, attr = next(((n, vars[n]['spatial_ref']) for n in vars if 'spatial_ref' in vars[n]), (None, None))
-        
-        # TODO: This is a really dirty fix. 
-        if attr_name is not None:
-            crs = CRS.from_wkt(attr)
-            data.rio.set_crs(crs, inplace=True)
-            logger.info(f"Used {attr_name} to infer CRS {crs.name} for {name}.")
-
-        else:
-            logger.warning(f"Could not find a CRS for {name}. Skip cropping.")
-            return data
-    
-    # clip the data
-    try:
-        clip = data.rio.clip(df.geometry.values, crs=4326, drop=True)
-        logger.info(f"Clipped {name} to reference_area.")
-
-        return clip
-    except Exception as e:
-        # TODO: if there is an error, fall back to duckdb solution
-        logger.exception(f"SKIP clipping on {name} as an exception occured.")
-        return data
 

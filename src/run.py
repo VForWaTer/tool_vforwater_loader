@@ -8,9 +8,9 @@ from dotenv import load_dotenv
 from metacatalog import api
 from tqdm import tqdm
 
-from loader import load_entry
+from loader import load_entry_data
 from logger import logger
-from writer import dispatch_save_file
+from clip import reference_area_to_file
 
 # parse parameters
 kwargs = get_parameter()
@@ -83,6 +83,10 @@ with open('/out/processing.log', 'w') as f:
 
 # --------------------------------------------------------------------------- #
 # Here is the actual tool
+# save the reference area to a file for later reuse
+if reference_area is not None:
+    reference_area = reference_area_to_file(reference_area)
+
 # load the datasets
 with ProcessPoolExecutor() as executor:
     for dataset_id in tqdm(dataset_ids):
@@ -90,14 +94,8 @@ with ProcessPoolExecutor() as executor:
             entry = api.find_entry(session, id=dataset_id, return_iterator=True).one()
             
             # load the entry and return the data path
-            data = load_entry(entry, start=start, end=end, reference_area=reference_area)
+            data_path = load_entry_data(entry, executor, start=start, end=end, reference_area=reference_area)
             
-            # save the intermediate data procucts here
-            # TODO the user might want to skip this, then the paths should be replaced with temporary paths
-
-            # switch the output file format
-            # TODO if this should be intermediate, we can pass a '/tmp' base_path
-            result_promise = dispatch_save_file(entry, data, executor=executor, base_path='/out')
 
         except Exception as e:
             logger.exception(f"ERRORED on dataset <ID={dataset_id}>")
