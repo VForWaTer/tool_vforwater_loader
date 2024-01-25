@@ -94,7 +94,7 @@ with ProcessPoolExecutor() as executor:
             entry = api.find_entry(session, id=dataset_id, return_iterator=True).one()
             
             # load the entry and return the data path
-            data_path = load_entry_data(entry, executor, start=start, end=end, reference_area=reference_area)
+            data_path = load_entry_data(entry, executor, start=start, end=end)
             
 
         except Exception as e:

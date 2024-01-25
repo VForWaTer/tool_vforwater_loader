@@ -25,7 +25,7 @@ from clip import mask_xarray_dataset
 
 
 # Maybe this function becomes part of metacatalog core or a metacatalog extension
-def load_entry_data(entry: Entry, executor: Executor, start: Optional[datetime] = None, end: Optional[datetime] = None, reference_area = None) -> str:
+def load_entry_data(entry: Entry, executor: Executor, start: Optional[datetime] = None, end: Optional[datetime] = None) -> str:
     # 1. get the path to the datasource
     path_type = entry.datasource.type.name
 
@@ -38,7 +38,7 @@ def load_entry_data(entry: Entry, executor: Executor, start: Optional[datetime] 
         data = load_sql_source(entry, start=start, end=end)
     # TODO: here we can be explicite about data source types
     else:
-        data = load_file_source(entry, start=start, end=end, time_axis=time_axis, reference_area=reference_area)
+        data = load_file_source(entry, start=start, end=end, time_axis=time_axis)
     
     # if the dataset is not a string (file path, dispatch a save task)
     # TODO: save the intermediate files to the /out path for now
@@ -65,14 +65,14 @@ def load_http_source(entry: Entry, start: Optional[datetime] = None, end: Option
     raise NotImplementedError("HTTP datasources are not supported yet.")
 
 
-def load_file_source(entry: Entry, start: Optional[datetime] = None, end: Optional[datetime] = None, time_axis: Optional[str] = None, reference_area = None) -> Union[xr.Dataset, dict]:
+def load_file_source(entry: Entry, start: Optional[datetime] = None, end: Optional[datetime] = None, time_axis: Optional[str] = None) -> Union[xr.Dataset, dict]:
     # create a Path from the name
     name = entry.datasource.path
     path = Path(name)
 
     # go for the different suffixes
     if path.suffix.lower() in ('.nc', '.netcdf', '.cdf', 'nc4'):
-        out_path = load_netcdf_file(name, time_axis=time_axis, start=start, end=end, reference_area=reference_area)
+        out_path = load_netcdf_file(name, time_axis=time_axis, start=start, end=end)
 
         # load the data into a single nc file and to a parquet file
         data = merge_multi_file_netcdf(entry=entry, path=out_path, save_nc=True, save_parquet=False)
@@ -86,9 +86,9 @@ def load_file_source(entry: Entry, start: Optional[datetime] = None, end: Option
         raise NotImplementedError('GeoTiff loader is currently not implemented, sorry.')
 
 
-def load_netcdf_file(name: str, time_axis: Optional[str] = None, start: Optional[datetime] = None, end: Optional[datetime] = None, reference_area: Optional[dict] = None) -> str:
+def load_netcdf_file(name: str, time_axis: Optional[str] = None, start: Optional[datetime] = None, end: Optional[datetime] = None) -> str:
     # convert reference area to shapely
-    ref = shapely.from_geojson(json.dumps(reference_area))
+    ref = gpd.read_file('/out/reference_area.geojson').geometry[0]
     bnd = ref.bounds
 
     # check if there is a wildcard in the name
