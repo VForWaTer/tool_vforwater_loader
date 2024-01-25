@@ -44,4 +44,4 @@ RUN mv /whitebox/WBT /src/WBT
 # go to the source directory of this tool
 WORKDIR /src
 RUN chmod +x ./run
-CMD ["echo", "Welcome to the tool help page.\nConfig:\n\n", "&&", "cat", "/src/tool.yml"]
+CMD ["python", "run.py"]
