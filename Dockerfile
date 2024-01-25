@@ -28,7 +28,7 @@ RUN pip install polars==0.19.19
 RUN pip install geocube
 
 # install the needed version for metacatalog
-RUN pip install metacatalog==0.9.0
+RUN pip install metacatalog==0.9.1
 
 # Install CDO, might be used to do seltimestep or sellonlatbox and possibly merge
 RUN apt-get install -y cdo

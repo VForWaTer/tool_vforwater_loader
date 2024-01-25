@@ -21,6 +21,7 @@ services:
       - db
     environment:
       METACATALOG_URI: postgresql://postgres:postgres@db:5432/metacatalog
+    command: ["cat", "/src/tool.yml"]
     volumes:
       - ./in:/in
       - ./out:/out
