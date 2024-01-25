@@ -13,15 +13,35 @@ services:
     volumes:
       - ./data/pg_data:/var/lib/postgresql/data
 
+  installer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    links:
+      - db
+    depends_on: 
+      - db 
+    environment:
+      METACATALOG_URI: postgresql://postgres:postgres@db:5432/metacatalog
+      DATA_FILE_PATH: /data/raster
+    command: ["python", "/src/pg_init/init.py"]
+    volumes:
+      - ./in:/in
+      - ./out:/out
+      - ./data/raster:/data/raster
+      - ./hyras_example:/tool_init
+    
   loader:
     build:
       context: .
       dockerfile: Dockerfile
     links:
       - db
+    depends_on:
+      - installer
     environment:
       METACATALOG_URI: postgresql://postgres:postgres@db:5432/metacatalog
-    command: ["cat", "/src/tool.yml"]
+    command: ["echo", "The tool can be started using 'docker compose run --rm loader python run.py'"]
     volumes:
       - ./in:/in
       - ./out:/out
