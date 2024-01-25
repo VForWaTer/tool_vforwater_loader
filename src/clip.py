@@ -29,12 +29,16 @@ def infer_crs_from_netcdf(data: xr.Dataset) -> CRS:
     # if we are still here, try to infer from attributes
     crs_wkt = next((v for k, v in data.attrs.items() if 'crs' in k.lower()), None)
     if crs_wkt is not None:
-        return CRS.from_wkt(crs_wkt)
+        crs = CRS.from_wkt(crs_wkt)
+        logger.debug(f"Found CRS in attributes: {crs.name}")
+        return crs
     
     # if we are still here, try to infer from the attributes of a data variable encoding the CRS
-    next((data[var].attrs.get('spatial_ref') for var in data.data_vars if 'crs' in var.attrs), None)
+    crs_wkt = next((data[var].attrs.get('spatial_ref') for var in data.data_vars if 'crs' in var.lower()), None)
     if crs_wkt is not None:
-        return CRS.from_wkt(crs_wkt)
+        crs = CRS.from_wkt(crs_wkt)
+        logger.debug(f"Found CRS in data variable attributes: {crs.name}")
+        return crs
     
     # no idea left
     return False
@@ -43,13 +47,17 @@ def infer_crs_from_netcdf(data: xr.Dataset) -> CRS:
 def mask_xarray_dataset(entry: Entry, path_or_data: Union[str, xr.Dataset], reference_path: str = '/out/reference_area.geojson') -> xr.Dataset:
     # first open the dataset
     if isinstance(path_or_data, str):
-        data = xr.open_dataset(path_or_data, mask_and_scale=True, decode_coords=True)
+        # TODO:  we need a strategy for the chunking here
+        data = xr.open_dataset(path_or_data, mask_and_scale=True, decode_coords=True, chunks={'time': 1})
+    else:
+        data = path_or_data
 
     # check if we need to infer the CRS
     if data.rio.crs is None:
+        logger.warning(f"Datasource for <ID={entry.id}> has no CRS. Trying to infer from attributes and data variable encoding. Please fix the datasource.")
         crs = infer_crs_from_netcdf(data)
-        if crs is not None:
-            data.rio.write_crs(crs)
+        if crs:
+            data = data.rio.set_crs(crs, inplace=True)
         else:
             logger.error(f"The xarray.Dataset build for source <ID={entry.id}> has no CRS, and none could be inferred from attributes and data variable encoding. Skipping masking.")
             return data
