@@ -132,5 +132,7 @@ dmypy.json
 out
 data/*
 .DS_Store
-exampes/hyras/scripts
+examples/hyras/scripts
+examples/hyras/**/in
+examples/hyras/**/out
 .vscode
