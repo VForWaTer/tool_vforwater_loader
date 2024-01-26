@@ -29,7 +29,7 @@ services:
       - ./in:/in
       - ./out:/out
       - ./data/raster:/data/raster
-      - ./hyras_example:/tool_init
+      - ./init:/tool_init
     
   loader:
     build:
