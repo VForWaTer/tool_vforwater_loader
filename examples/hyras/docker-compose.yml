@@ -1,0 +1,46 @@
+version: '3.8'
+services:
+  db:
+    image: postgis/postgis:15-3.4
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: metacatalog
+    expose:
+      - 5432
+    ports:
+      - 5433:5432
+    volumes:
+      - ../../data/pg_data:/var/lib/postgresql/data
+
+  installer:
+    build:
+      context: ../../
+      dockerfile: Dockerfile
+    links:
+      - db
+    depends_on: 
+      - db 
+    environment:
+      METACATALOG_URI: postgresql://postgres:postgres@db:5432/metacatalog
+      DATA_FILE_PATH: /data/raster
+      START_YEAR: 2005
+      END_YEAR: 2015
+    command: ["python", "/src/pg_init/init.py"]
+    volumes:
+      - ../../data/raster:/data/raster
+      - ../../examples/hyras/init:/tool_init
+    
+  loader:
+    build:
+      context: ../../
+      dockerfile: Dockerfile
+    links:
+      - db
+    environment:
+      METACATALOG_URI: postgresql://postgres:postgres@db:5432/metacatalog
+    command: ["echo", "run the tool like 'docker compose run --rm loader python run.py'"]
+    volumes:
+      - ../../in:/in
+      - ../../out:/out
+      - ../../data/raster:/data/raster
