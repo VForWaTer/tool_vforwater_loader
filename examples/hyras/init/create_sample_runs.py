@@ -14,7 +14,7 @@ def load_hyras_ids(session: Session) -> List[int]:
     return [entry.id for entry in entries]
 
 
-def generate_input_data(hyras_ids: List[int], geodjson_path: str = '.') -> None:
+def generate_input_data(hyras_ids: List[int], geodjson_path: str = '/tool_init/') -> None:
     # find all geojson files
     geojson_files = glob.glob(f'{geodjson_path}/*.geojson')
 
