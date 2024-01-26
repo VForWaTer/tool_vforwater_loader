@@ -20,3 +20,6 @@ pip install papermill jupyter
 
 # run the hyras example to import the downloaded data to the metacatalog instance
 papermill ./hyras/upload_hyras.ipynb /tool_init/$(date +%F)_upload_hyras.ipynb -p DATA_DIR "${DATA_FILE_PATH}/{var}/*.nc" -p CONNECTION $METACATALOG_URI
+
+# run the python script to build the example folder
+python /tool_init/create_sample_runs.py
