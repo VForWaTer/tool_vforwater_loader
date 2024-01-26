@@ -50,7 +50,7 @@ services:
 # MOUNTS itself. ALTERNATIVELY, WE WOULD NEED A WAY HOW WE CAN INVOKE THE default loader
 # BUT OVERWRITE THE MOUNTS. I DON'T KNOW HOW TO DO THAT.
 # THUS I create a new service for each of the examples
-  DE210080_loader:
+  de210080_loader:
     build:
       context: ../../
       dockerfile: Dockerfile
@@ -64,7 +64,7 @@ services:
       - ./DE210080/out:/out
       - ../../data/raster:/data/raster
 
-  DE410890_loader:
+  de410890_loader:
     build:
       context: ../../
       dockerfile: Dockerfile
@@ -78,7 +78,7 @@ services:
       - ./DE410890/out:/out
       - ../../data/raster:/data/raster
 
-  DE910180_loader:
+  de910180_loader:
     build:
       context: ../../
       dockerfile: Dockerfile
