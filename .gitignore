@@ -130,5 +130,6 @@ dmypy.json
 
 # project specific
 out
-pg_data
+data/*
 .DS_Store
+exampes/hyras/scripts
