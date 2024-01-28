@@ -27,6 +27,9 @@ tools:
         type: datetime
         description: |
           The end date of the datasetm, if a time dimension applies to the dataset.
+      # integrate dataset
+      # mode of operation
+      # keep intermediate files
       connection:
         type: string
         optional: true

@@ -10,7 +10,7 @@ def install_pg():
 
     #check if the database exists
     try:
-        # try to find at least one hyras entry
+        # try to find at least one entry
         entries = api.find_entry(session, title='*')
         if len(entries) > 0:
             return

@@ -63,6 +63,7 @@ services:
       - ./DE210080/in:/in
       - ./DE210080/out:/out
       - ../../data/raster:/data/raster
+      - ../../src:/src
 
   de410890_loader:
     build:
