@@ -1,5 +1,6 @@
 from typing import Union
 import time
+from pathlib import Path
 
 from metacatalog.models import Entry
 import geopandas as gpd
@@ -9,17 +10,25 @@ from pyproj import CRS
 from geocube.api.core import make_geocube
 
 from logger import logger
-from writer import dispatch_save_file
+from param import load_params
 
-def reference_area_to_file(reference_area: dict) -> str:
+
+def reference_area_to_file() -> str:
+    params = load_params()
+
     # create a geodataframe
-    df = gpd.GeoDataFrame.from_features([reference_area])
+    df = gpd.GeoDataFrame.from_features([params.reference_area])
 
     # save the reference area as a geojson file
-    path = '/out/reference_area.geojson'
+    path = Path(params.base_path) / 'reference_area.geojson'
     df.to_file(path, driver='GeoJSON')
 
-    return path
+    # save the coordinates to a ascii file
+    path = Path(params.base_path) / 'reference_area.ascii'
+    df.get_coordinates().to_csv(path, sep=' ', header=False, index=False)
+
+    return str(path)
+
 
 def infer_crs_from_netcdf(data: xr.Dataset) -> CRS:
     # try to infer from rioxarray
