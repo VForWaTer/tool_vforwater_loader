@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from metacatalog import api
 from tqdm import tqdm
 
+from param import load_params
 from loader import load_entry_data
 from logger import logger
 from clip import reference_area_to_file
@@ -23,15 +24,11 @@ if toolname != 'vforwater_loader':
     raise AttributeError(f"[{dt.now().isocalendar()}] Either no TOOL_RUN environment variable available, or '{toolname}' is not valid.\n")
 
 
-# extract the dataset ids
-dataset_ids = kwargs['dataset_ids']
-
-# extract the optional information
-start = kwargs.get('start_date')
-end = kwargs.get('end_date')
-reference_area = kwargs.get('reference_area')
+# use the pydantic model to handle the input parameters
+params = load_params(**kwargs)
 
 # check if a connection was given and if it is a valid path
+# this is handled extra to keep the pydantic model simpler
 if 'connection' in kwargs:
     if Path(kwargs['connection']).exists():
         load_dotenv(dotenv_path=kwargs['connection'])
@@ -60,19 +57,18 @@ This is the V-FOR-WaTer data loader report
 
 The following information has been submitted to the tool:
 
-START DATE:         {start}
-END DATE:           {end}
-REFERENCE AREA:     {reference_area is not None}
+START DATE:         {params.start_date}
+END DATE:           {params.end_date}
+REFERENCE AREA:     {params.reference_area is not None}
 
 DATASET IDS:
-{', '.join(map(str, dataset_ids))}
+{', '.join(map(str, params.dataset_ids))}
 
 DATABASE CONNECTION: {connection is not None}
 DATABASE URI:        {session.bind}
 
 NOTE
 ----
-The current version of the tool does only support netCDF clips using a bounding box.
 The current version of the tool does only select files within a time range for multi-file netCDFs.
 
 Processing logs:
@@ -84,17 +80,17 @@ with open('/out/processing.log', 'w') as f:
 # --------------------------------------------------------------------------- #
 # Here is the actual tool
 # save the reference area to a file for later reuse
-if reference_area is not None:
-    reference_area = reference_area_to_file(reference_area)
+if params.reference_area is not None:
+    reference_area = reference_area_to_file()
 
 # load the datasets
 with ProcessPoolExecutor() as executor:
-    for dataset_id in tqdm(dataset_ids):
+    for dataset_id in tqdm(params.dataset_ids):
         try:
             entry = api.find_entry(session, id=dataset_id, return_iterator=True).one()
             
             # load the entry and return the data path
-            data_path = load_entry_data(entry, executor, start=start, end=end)
+            data_path = load_entry_data(entry, executor)
             
 
         except Exception as e:

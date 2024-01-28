@@ -1,9 +1,4 @@
-from typing import Union, Optional, List
-from pathlib import Path
-from datetime import datetime
-import json
 import glob
-import tempfile
 import subprocess
 import time
 from concurrent.futures import Executor
@@ -15,40 +10,30 @@ import pandas as pd
 import geopandas as gpd
 import rasterio as rio
 
-import shapely
-from pyproj import CRS
 
 from logger import logger
 from writer import dispatch_save_file
-from clip import mask_xarray_dataset
+from param import load_params, Params
 
 
 
 # Maybe this function becomes part of metacatalog core or a metacatalog extension
-def load_entry_data(entry: Entry, executor: Executor, start: Optional[datetime] = None, end: Optional[datetime] = None) -> str:
+def load_entry_data(entry: Entry, executor: Executor) -> str:
     # 1. get the path to the datasource
     path_type = entry.datasource.type.name
 
-    # TODO: here we need to load the axis names from the datasource
-    time_axis = None
-    spatial_axis = None
-
     # if the type is internal or external, we need to use the load_sql_source
     if path_type in ('internal', 'external'):
-        data = load_sql_source(entry, start=start, end=end)
+        data_path = load_sql_source(entry, executor=executor)
     # TODO: here we can be explicite about data source types
     else:
-        data = load_file_source(entry, start=start, end=end, time_axis=time_axis)
-    
-    # if the dataset is not a string (file path, dispatch a save task)
-    # TODO: save the intermediate files to the /out path for now
-    data_path = dispatch_save_file(entry, data, executor=executor, base_path='/out')
-    
-    # For now return here
+        data_path = load_file_source(entry, executor=executor)
+
+    # Return the data path to the entry-level dataset
     return data_path
 
 
-def load_sql_source(entry: Entry, start: Optional[datetime] = None, end: Optional[datetime] = None):
+def load_sql_source(entry: Entry, executor: Executor):
     # if the source is external, we can't use it right now, as it is not clear
     # yet if the Datasource.path is the connection or the path inside the database
     if entry.datasource.type.name == 'external':
@@ -61,35 +46,32 @@ def load_sql_source(entry: Entry, start: Optional[datetime] = None, end: Optiona
     return data
 
 
-def load_http_source(entry: Entry, start: Optional[datetime] = None, end: Optional[datetime] = None):
+def load_http_source(entry: Entry):
     raise NotImplementedError("HTTP datasources are not supported yet.")
 
 
-def load_file_source(entry: Entry, start: Optional[datetime] = None, end: Optional[datetime] = None, time_axis: Optional[str] = None) -> Union[xr.Dataset, dict]:
+def load_file_source(entry: Entry, executor: Executor) -> str:
     # create a Path from the name
     name = entry.datasource.path
     path = Path(name)
 
     # go for the different suffixes
     if path.suffix.lower() in ('.nc', '.netcdf', '.cdf', 'nc4'):
-        out_path = load_netcdf_file(name, time_axis=time_axis, start=start, end=end)
-
-        # load the data into a single nc file and to a parquet file
-        data = merge_multi_file_netcdf(entry=entry, path=out_path, save_nc=True, save_parquet=False)
-
-        # do the clip
-        clip_data = mask_xarray_dataset(entry=entry, path_or_data=data)
+        # laod the netCDF file time & space chunks to the output folder
+        out_path = load_netcdf_file(entry, executor=executor)
         
         # return the dataset
-        return clip_data
+        return out_path
     elif path.suffix.lower() in ('.tif', '.tiff', '.dem'):
         raise NotImplementedError('GeoTiff loader is currently not implemented, sorry.')
 
 
-def load_netcdf_file(name: str, time_axis: Optional[str] = None, start: Optional[datetime] = None, end: Optional[datetime] = None) -> str:
-    # convert reference area to shapely
-    ref = gpd.read_file('/out/reference_area.geojson').geometry[0]
-    bnd = ref.bounds
+def load_netcdf_file(entry: Entry, executor: Executor) -> str:
+    # load the params
+    params = load_params()
+
+    # get the file name
+    name = entry.datasource.path
 
     # check if there is a wildcard in the name
     if '*' in name:
@@ -106,55 +88,118 @@ def load_netcdf_file(name: str, time_axis: Optional[str] = None, start: Optional
     else:
         logger.debug(f"Resource {name} is single file.")
 
-    # get a temporary directory
-    # TODO: use a deterministic path here, in order to be reproducible
-    out_path = Path(tempfile.mkdtemp())
+    # get the time axis
+    temporal_dims = entry.datasource.temporal_scale.dimension_names if entry.datasource.temporal_scale is not None else []
+    
+    # get a path for the current dataset path
+    dataset_base_path = params.dataset_path / f"{entry.variable.name.replace(' ', '_')}_{entry.id}"
 
     # preprocess each netcdf / grib / zarr file
     for fname in fnames:
         # read the min and max time and check if we can skip
-        ds = xr.open_dataset(fname)
+        ds = xr.open_dataset(fname, decode_coords='all', mask_and_scale=True)
 
         # check if we there is a time axis
-        try:
-            if time_axis is None:
-                time_axis = [c for c in ds.coords if c.lower() in ('tstamp', 'time', 'date', 'datetime')][0]
-
+        if len(temporal_dims) > 0:
             # get the min and max time
-            min_time = pd.to_datetime(ds[time_axis].min().values)
-            max_time = pd.to_datetime(ds[time_axis].max().values)
+            min_time = pd.to_datetime(ds[temporal_dims[0]].min().values)
+            max_time = pd.to_datetime(ds[temporal_dims[0]].max().values)
 
-            if (start is not None and start > max_time.tz_localize(start.tzinfo)) or (end is not None and end < min_time.tz_localize(end.tzinfo)):
-                logger.info(f'skipping {fname} as it is not in the time range: {start} - {end}')
+            if (
+                params.start_date is not None and params.start_date > max_time.tz_localize(params.start_date.tzinfo)
+            ) or (
+                params.end_date is not None and params.end_date < min_time.tz_localize(params.end_date.tzinfo)
+            ):
+                logger.debug(f'skipping {fname} as it is not in the time range: {params.start_date} - {params.end_date}')
+                ds.close()
                 continue
-        except IndexError:
+        else:
+            ds.close()
             logger.warning(f"The dataset {fname} does not contain a datetime coordinate.")
         
-        # close datasource again
-        ds.close()
-        
-        # run CDO to clip the data
-        out_name = out_path / Path(fname).name
-        sel_cmd = f'-sellonlatbox,{bnd[0]},{bnd[2]},{bnd[1]},{bnd[3]}'
+        # 
+        if params.netcdf_backend == 'cdo':
+            ds.close()
+            path = _clip_netcdf_cdo(fname, params)
 
-        # TODO if the we did not skip, but start or end in WITHIN the time range, we can search the indices to use
-        # and add a -seltimestep command to the sel_cmd
-        # alternatively we use the duckdb path and do the slicing there
+            #TODO to the mergetime here
+            pass
+
+            return path
+        elif params.netcdf_backend == 'xarray':
+            data = _clip_netcdf_xarray(entry, ds, params)
+        elif params.netcdf_backend == 'parquet':
+            # use the xarray clip first
+            ds = _clip_netcdf_xarray(entry, ds, params)
+
+            data = ds.to_dask_dataframe()[entry.datasource.dimension_names].dropna()
         
-        # run the CDO select command
-        t1 = time.time()
-        p = subprocess.run(['cdo', sel_cmd, fname, out_name], stdout=subprocess.PIPE, text=True)
-        t2 = time.time()
-        
-        # use the logger to log the output
-        logger.info(f"cdo {sel_cmd} {fname} {out_name}")
-        
-        # check if CDO had output
-        logger.info(p.stdout)
-        logger.debug(f"took {t2-t1:.2f} seconds")
-    
+        # if we are still here, dispatch the save task for intermediate file chunk
+        # we do not need the future here, we can directly move to the next file
+        dispatch_save_file(entry=entry, data=data, executor=executor, base_path=str(dataset_base_path))
+
     # return the out_path
-    return out_path
+    return str(dataset_base_path)
+
+def _clip_netcdf_cdo(path: Path, params: Params):
+    # get the output name
+    out_name = params.intermediate_path / path.name
+
+    # build the several commands
+    ref = params.reference_area_df
+    bnd = ref.geometry[0].bounds
+
+    # create the lonlatbox command
+    lonlat_cmd = f"-sellonlatbox,{bnd[0]},{bnd[2]},{bnd[1]},{bnd[3]}"
+
+    # create the selregion command
+    selregion_cmd = f"-selregion,{params.base_path}/reference_area.ascii"
+
+    # build the full command
+    cmd = ['cdo', selregion_cmd, lonlat_cmd, str(path), str(out_name)]
+    
+    # run
+    t1 = time.time()
+    subprocess.run(cmd)
+    t2 = time.time()
+
+    # log the command
+    logger.info(' '.join(cmd))
+    logger.info(f"took {t2-t1:.2f} seconds")
+    
+    return str(out_name)
+
+def _clip_netcdf_xarray(entry: Entry, data: xr.Dataset, params: Params):
+    if data.rio.crs is None:
+        logger.error(f"Could not clip {data} as it has no CRS.")
+        
+        # TODO: how to handle this case?
+        return data
+    
+    # TODO: log the stuff we are doing here!
+    # extract only the data variable
+    ds = data[entry.datasource.variable_names].copy()
+
+    # first go for the lonlatbox clip
+    ref = params.reference_area_df
+    bounds = ref.geometry[0].bounds
+
+    # then the region clip
+    if entry.datasource.temporal_scale is not None:
+        ds.chunk({entry.datasource.temporal_scale.dimension_names[0]: 1})
+    
+    # do the lonlat and then the region clip
+    lonlatbox = ds.rio.clip_box(*bounds, crs=4326)
+    region = lonlatbox.rio.clip([ref.geometry[0]], crs=4326)
+
+    # do the time clip
+    if entry.datasource.temporal_scale is not None:
+        time_slice = slice(params.start_date, params.end_date)
+        region = region.sel(**{entry.datasource.temporal_scale.dimension_names[0]: time_slice})
+
+    # return the new dataset
+    return region
+
 
 
 def load_raster_file(entry: Entry, name: str, reference_area: dict, base_path: str = '/out') -> rio.DatasetReader:
@@ -202,6 +247,8 @@ def load_raster_file(entry: Entry, name: str, reference_area: dict, base_path: s
             dst.write(out_raster)
     
 
+# deprecated
+# we do not merge them anymore            
 def merge_multi_file_netcdf(entry: Entry, path: str, save_nc: bool = True, save_parquet: bool = True) -> pd.DataFrame:
     # check if this file should be saved
     if save_nc:
