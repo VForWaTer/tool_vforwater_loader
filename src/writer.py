@@ -67,7 +67,8 @@ def dataframe_to_parquet_saver(data: Union[pd.DataFrame, DaskDataFrame], target_
     if isinstance(data, pd.DataFrame):
         data.to_parquet(target_name, index=False)
     elif isinstance(data, DaskDataFrame):
-        data.to_parquet(target_name, write_index=False)
+        for partition in data.partitions:
+            partition.compute().to_parquet(target_name, append=True, index=False)
     else:
         logger.error(f"Could not save {target_name} as it is not a pandas or dask dataframe. Got a {type(data)} instead.")
     t2 = time.time()
