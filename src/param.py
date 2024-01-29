@@ -30,13 +30,18 @@ class NetCDFBackends(str, Enum):
 
 
 class Params(BaseModel):
+    # mandatory inputs are the dataset ids and the reference area
     dataset_ids: List[int]
     reference_area: dict = Field(repr=False)
 
+    # optional parameters to configure the processing
     start_date: datetime = None
     end_date: datetime = None
-    keep_intermediate: bool = False
     integration: Integrations = Integrations.ALL
+
+    # optional parameter to configure output
+    keep_intermediate: bool = False
+    database_name: str = 'dataset.db'
 
     # stuff that we do not change in the tool
     base_path: str = '/out'
@@ -61,11 +66,15 @@ class Params(BaseModel):
         p.mkdir(parents=True, exist_ok=True)
 
         return p
-
     
+    @property
+    def database_path(self) -> Path:
+        return Path(self.base_path) / self.database_name
+
     @property
     def reference_area_df(self) -> gpd.GeoDataFrame:
         return gpd.GeoDataFrame.from_features([self.reference_area])
+
 
 # manage a single instance to this class
 __SINGLETON: Params = None
