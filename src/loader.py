@@ -2,6 +2,7 @@ import glob
 import subprocess
 import time
 from concurrent.futures import Executor
+from pathlib import Path
 
 from metacatalog.models import Entry
 import rioxarray
@@ -12,7 +13,7 @@ import rasterio as rio
 
 
 from logger import logger
-from writer import dispatch_save_file
+from writer import dispatch_save_file, entry_metadata_saver
 from param import load_params, Params
 
 
@@ -33,7 +34,10 @@ def load_entry_data(entry: Entry, executor: Executor) -> str:
     return data_path
 
 
-def load_sql_source(entry: Entry, executor: Executor):
+def load_sql_source(entry: Entry, executor: Executor) -> str:
+    # load the params
+    params = load_params()
+
     # if the source is external, we can't use it right now, as it is not clear
     # yet if the Datasource.path is the connection or the path inside the database
     if entry.datasource.type.name == 'external':
@@ -41,9 +45,12 @@ def load_sql_source(entry: Entry, executor: Executor):
     
     # we are internal and can request a session to the database
     # TODO: now this has to be replaced by the new logic where every entry goes into its own table
-    data = entry.get_data(start=start, end=end)
+    data = entry.get_data(start=params.start_date, end=params.end_date)
 
-    return data
+    # dispatch a save task for the data
+    target_name = f"{entry.variable.name.replace(' ', '_')}_{entry.id}"
+    dispatch_save_file(entry=entry, data=data, executor=executor, base_path=str(params.dataset_path), target_name=target_name)
+    return target_name
 
 
 def load_http_source(entry: Entry):
@@ -95,7 +102,7 @@ def load_netcdf_file(entry: Entry, executor: Executor) -> str:
     dataset_base_path = params.dataset_path / f"{entry.variable.name.replace(' ', '_')}_{entry.id}"
 
     # preprocess each netcdf / grib / zarr file
-    for fname in fnames:
+    for i, fname in enumerate(fnames):
         # read the min and max time and check if we can skip
         ds = xr.open_dataset(fname, decode_coords='all', mask_and_scale=True)
 
@@ -136,7 +143,22 @@ def load_netcdf_file(entry: Entry, executor: Executor) -> str:
         
         # if we are still here, dispatch the save task for intermediate file chunk
         # we do not need the future here, we can directly move to the next file
-        dispatch_save_file(entry=entry, data=data, executor=executor, base_path=str(dataset_base_path))
+        
+        # as we write many files in parallel here, we need to provide the target names one-by-one
+        # and supress the creation of metadata files
+        dataset_base_path.mkdir(parents=True, exist_ok=True)
+        
+        # get the filenmae
+        filename = f"{entry.variable.name.replace(' ', '_')}_{entry.id}"
+        target_name = f"{filename}_part_{i + 1}.nc"
+
+        dispatch_save_file(entry=entry, data=data, executor=executor, base_path=str(dataset_base_path), target_name=target_name, save_meta=False)
+        # if there are many files, we save the metadata only once
+        if i == 0:
+            metafile_name = str(Path(params.base_path) / f"{filename}.json")
+            entry_metadata_saver(entry, metafile_name)
+            logger.info(f"Saved metadata for dataset <ID={entry.id}> to {metafile_name}.")
+
 
     # return the out_path
     return str(dataset_base_path)
@@ -186,16 +208,28 @@ def _clip_netcdf_xarray(entry: Entry, data: xr.Dataset, params: Params):
 
     # then the region clip
     if entry.datasource.temporal_scale is not None:
+        time_dim = entry.datasource.temporal_scale.dimension_names[0]
         ds.chunk({entry.datasource.temporal_scale.dimension_names[0]: 1})
+    else:
+        time_dim = None
+
     
     # do the lonlat and then the region clip
     lonlatbox = ds.rio.clip_box(*bounds, crs=4326)
     region = lonlatbox.rio.clip([ref.geometry[0]], crs=4326)
 
     # do the time clip
-    if entry.datasource.temporal_scale is not None:
-        time_slice = slice(params.start_date, params.end_date)
-        region = region.sel(**{entry.datasource.temporal_scale.dimension_names[0]: time_slice})
+    if time_dim is not None:        
+        # TODO: check the attrs of time_dim to see if there is timezone information
+
+        # convert params to UTC as we assume any xarray souce to use UTC dates
+        time_slice = slice(
+            pd.to_datetime(params.start_date).tz_convert('UTC').tz_localize(None) if params.start_date is not None else None, 
+            pd.to_datetime(params.end_date).tz_convert('UTC').tz_localize(None) if params.end_date is not None else None
+        )
+
+        # subset the time axis
+        region = region.sel(**{time_dim: time_slice})
 
     # return the new dataset
     return region
