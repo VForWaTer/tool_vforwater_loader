@@ -84,6 +84,8 @@ if params.reference_area is not None:
     reference_area = reference_area_to_file()
 
 # load the datasets
+# save the entries and their data_paths for later use
+file_mapping = []
 with ProcessPoolExecutor() as executor:
     for dataset_id in tqdm(params.dataset_ids):
         try:
@@ -91,8 +93,9 @@ with ProcessPoolExecutor() as executor:
             
             # load the entry and return the data path
             data_path = load_entry_data(entry, executor)
-            
 
+            # save the mapping from entry to data_path
+            file_mapping.append({'entry': entry, 'data_path': data_path})
         except Exception as e:
             logger.exception(f"ERRORED on dataset <ID={dataset_id}>")
             continue
@@ -101,7 +104,7 @@ with ProcessPoolExecutor() as executor:
     executor.shutdown(wait=True)
     logger.info(f"Pool {type(executor).__name__} finished all tasks and shutdown.")
 
-    # here to the stuff for creating a consistent dataset
+# here to the stuff for creating a consistent dataset
 
 # --------------------------------------------------------------------------- #
 

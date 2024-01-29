@@ -155,7 +155,7 @@ def load_netcdf_file(entry: Entry, executor: Executor) -> str:
         dispatch_save_file(entry=entry, data=data, executor=executor, base_path=str(dataset_base_path), target_name=target_name, save_meta=False)
         # if there are many files, we save the metadata only once
         if i == 0:
-            metafile_name = str(Path(params.base_path) / f"{filename}.json")
+            metafile_name = str(params.dataset_path / f"{filename}.json")
             entry_metadata_saver(entry, metafile_name)
             logger.info(f"Saved metadata for dataset <ID={entry.id}> to {metafile_name}.")
 
