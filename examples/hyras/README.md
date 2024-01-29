@@ -18,3 +18,14 @@ db is not there. Then, invoke the installer manually, until that issue is resolv
 ```
 docker compose -f examples/hyras/docker-compose.yml run --rm installer
 ```
+
+The same thing applies to the actual examples. I can't figure out a way, how they could `depend_on: installer`,
+in a way, that they wait until the installer has *finished*. 
+Hence, their default command is overwritten to just echo the command that one would need to actually run the tool.
+
+Long story short: To run one of the examples, with the `/examples/hyras` compose cluster running, you can:
+
+```
+cd examples/hyras
+docker compose run --rm de410890 python run.py
+```
