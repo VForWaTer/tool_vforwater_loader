@@ -134,10 +134,10 @@ def load_netcdf_file(entry: Entry, executor: Executor) -> str:
 
             return path
         elif params.netcdf_backend == 'xarray':
-            data = _clip_netcdf_xarray(entry, ds, params)
+            data = _clip_netcdf_xarray(entry, fname, ds, params)
         elif params.netcdf_backend == 'parquet':
             # use the xarray clip first
-            ds = _clip_netcdf_xarray(entry, ds, params)
+            ds = _clip_netcdf_xarray(entry, fname, ds, params)
 
             data = ds.to_dask_dataframe()[entry.datasource.dimension_names].dropna()
         
@@ -191,16 +191,23 @@ def _clip_netcdf_cdo(path: Path, params: Params):
     
     return str(out_name)
 
-def _clip_netcdf_xarray(entry: Entry, data: xr.Dataset, params: Params):
+def _clip_netcdf_xarray(entry: Entry, file_name: str, data: xr.Dataset, params: Params):
     if data.rio.crs is None:
         logger.error(f"Could not clip {data} as it has no CRS.")
         
         # TODO: how to handle this case?
         return data
+    else:
+        # inform the user that we are processing the file using xarray
+        logger.info(f"Processing {file_name} in python using rioxarray and xarray (source <ID={entry.id}>)...")
     
-    # TODO: log the stuff we are doing here!
+    # start a timer
+    t1 = time.time()
+
     # extract only the data variable
-    ds = data[entry.datasource.variable_names].copy()
+    variable_names = entry.datasource.variable_names
+    ds = data[variable_names].copy()
+    logger.info(f"python - ds = data[{variable_names}].copy()")
 
     # first go for the lonlatbox clip
     ref = params.reference_area_df
@@ -210,13 +217,18 @@ def _clip_netcdf_xarray(entry: Entry, data: xr.Dataset, params: Params):
     if entry.datasource.temporal_scale is not None:
         time_dim = entry.datasource.temporal_scale.dimension_names[0]
         ds.chunk({entry.datasource.temporal_scale.dimension_names[0]: 1})
+
+        logger.info(f"python - ds.chunk{{'{time_dim}': 1}})")
     else:
         time_dim = None
 
-    
     # do the lonlat and then the region clip
     lonlatbox = ds.rio.clip_box(*bounds, crs=4326)
     region = lonlatbox.rio.clip([ref.geometry[0]], crs=4326)
+
+    # log out
+    logger.info(f"python - lonlatbox df.rio.clip_box(({','.join(bounds)}), crs=4326)")
+    logger.info(f"python - region = lonlatbox.rio.clip([ref.geometry[0]], crs=4326)")
 
     # do the time clip
     if time_dim is not None:        
@@ -230,6 +242,10 @@ def _clip_netcdf_xarray(entry: Entry, data: xr.Dataset, params: Params):
 
         # subset the time axis
         region = region.sel(**{time_dim: time_slice})
+        logger.info(f"python - region.sel({time_dim}=slice({time_slice[0]}, {time_slice[1]}))")
+    
+    t2 = time.time()
+    logger.info(f"took {t2-t1:.2f} seconds")
 
     # return the new dataset
     return region
