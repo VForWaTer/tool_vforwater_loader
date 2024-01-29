@@ -28,7 +28,7 @@ class EntryDictSerializer(json.JSONEncoder):
         return super().default(obj)
 
 # TODO: target path should be createable from the outside
-def dispatch_save_file(entry: Entry, data: Union[pd.DataFrame, DaskDataFrame, xr.Dataset], executor: Executor, base_path: str = '/out', target_name: Optional[str] = None) -> Future:
+def dispatch_save_file(entry: Entry, data: Union[pd.DataFrame, DaskDataFrame, xr.Dataset], executor: Executor, base_path: str = '/out', target_name: Optional[str] = None, save_meta: bool = True) -> Future:
     # get the target_name
     if target_name is None:
         target_path = Path(base_path) / f"{entry.variable.name.replace(' ', '_')}_{entry.id}"
@@ -41,7 +41,7 @@ def dispatch_save_file(entry: Entry, data: Union[pd.DataFrame, DaskDataFrame, xr
         exc = future.exception()
         if exc is not None:
             logger.error(f"ERRORED on saving dataset <ID={entry.id}> to {target_path}")
-        else:
+        elif save_meta:
             # save the metadata
             metafile_name = f"{target_path}.json"
             entry_metadata_saver(entry, metafile_name)
@@ -49,11 +49,13 @@ def dispatch_save_file(entry: Entry, data: Union[pd.DataFrame, DaskDataFrame, xr
             
     # switch the data type
     if isinstance(data, (pd.DataFrame, DaskDataFrame)):
-        target_name = f"{target_path}.parquet"
-        future = executor.submit(dataframe_to_parquet_saver, data, target_name)
+        if not str(target_path).endswith('.parquet'):
+            target_path = f"{target_path}.parquet"
+        future = executor.submit(dataframe_to_parquet_saver, data, target_path)
     elif isinstance(data, xr.Dataset):
-        target_name = f"{target_path}.nc"
-        future = executor.submit(xarray_to_netcdf_saver, data, target_name)
+        if not str(target_path).endswith('.nc'):
+            target_path = f"{target_path}.nc"
+        future = executor.submit(xarray_to_netcdf_saver, data, target_path)
     else:
         future = executor.submit(raw_data_copy_saver, entry, target_path)
 
