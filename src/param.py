@@ -57,7 +57,11 @@ class Params(BaseModel):
     
     @property
     def dataset_path(self) -> Path:
-        return Path(self.base_path) / 'datasets'
+        p = Path(self.base_path) / 'datasets'
+        p.mkdir(parents=True, exist_ok=True)
+
+        return p
+
     
     @property
     def reference_area_df(self) -> gpd.GeoDataFrame:
