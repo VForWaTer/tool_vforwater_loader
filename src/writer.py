@@ -43,7 +43,7 @@ def dispatch_save_file(entry: Entry, data: Union[pd.DataFrame, DaskDataFrame, xr
             logger.error(f"ERRORED on saving dataset <ID={entry.id}> to {target_path}")
         elif save_meta:
             # save the metadata
-            metafile_name = f"{target_path}.json"
+            metafile_name = f"{target_path}.metadata.json"
             entry_metadata_saver(entry, metafile_name)
             logger.info(f"Saved metadata for dataset <ID={entry.id}> to {metafile_name}.")
             
