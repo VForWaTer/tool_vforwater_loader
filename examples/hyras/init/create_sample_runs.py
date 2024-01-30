@@ -14,9 +14,10 @@ def load_hyras_ids(session: Session) -> List[int]:
     return [entry.id for entry in entries]
 
 
-def generate_input_data(hyras_ids: List[int], geodjson_path: str = '/tool_init/') -> None:
+def generate_input_data(hyras_ids: List[int], geojson_path: str = '/tool_init/init/') -> None:
     # find all geojson files
-    geojson_files = glob.glob(f'{geodjson_path}/*.geojson')
+    geojson_files = glob.glob(f'{geojson_path}/*.geojson')
+    out_path = Path(geojson_path).parent
 
     # create a folder for each catchment
     for geojson_file in tqdm(geojson_files):
@@ -24,7 +25,7 @@ def generate_input_data(hyras_ids: List[int], geodjson_path: str = '/tool_init/'
         catchment_id = Path(geojson_file).stem
 
         # create a folder for the catchment
-        catchment_base_path = Path(catchment_id)
+        catchment_base_path = out_path / catchment_id
         catchment_base_path.mkdir(parents=True, exist_ok=True)
 
         # create a in and out folder
@@ -45,8 +46,8 @@ def generate_input_data(hyras_ids: List[int], geodjson_path: str = '/tool_init/'
             vforwater_loader=dict(
                 parameters=dict(
                     dataset_ids=hyras_ids,
-                    start_date=f"{os.getenv('START_DATE', '2000')}-01-01T12:00:00+01",
-                    end_date=f"{os.getenv('END_DATE', '2010')}-12-31T12:00:00+01",
+                    start_date=f"{os.getenv('START_YEAR', '2000')}-01-01T12:00:00+01",
+                    end_date=f"{os.getenv('END_YEAR', '2010')}-12-31T12:00:00+01",
                     reference_area=feature
                 )
             )
@@ -66,4 +67,4 @@ if __name__ == '__main__':
     hyras_ids = load_hyras_ids(session)
 
     # generate the input data
-    generate_input_data(hyras_ids, geodjson_path='.')
+    generate_input_data(hyras_ids)
