@@ -29,7 +29,7 @@ services:
     command: ["python", "/src/pg_init/init.py"]
     volumes:
       - ../../data/raster:/data/raster
-      - ../../examples/hyras/init:/tool_init
+      - ../../examples/hyras:/tool_init
     
   loader:
     build:

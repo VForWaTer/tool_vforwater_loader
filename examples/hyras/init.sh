@@ -10,7 +10,7 @@ done
 
 
 # download the scripts directory
-cd /tool_init
+cd /tool_init/init
 git clone https://github.com/vforwater/scripts.git
 cd scripts
 git pull
@@ -19,7 +19,8 @@ git pull
 pip install papermill jupyter
 
 # run the hyras example to import the downloaded data to the metacatalog instance
-papermill ./hyras/upload_hyras.ipynb /tool_init/$(date +%F)_upload_hyras.ipynb -p DATA_DIR "${DATA_FILE_PATH}/{var}/*.nc" -p CONNECTION $METACATALOG_URI
+papermill ./hyras/upload_hyras.ipynb /tool_init/init/$(date +%F)_upload_hyras.ipynb -p DATA_DIR "${DATA_FILE_PATH}/{var}/*.nc" -p CONNECTION $METACATALOG_URI
 
 # run the python script to build the example folder
-python /tool_init/create_sample_runs.py
+cd /tool_init/init
+python ./create_sample_runs.py
