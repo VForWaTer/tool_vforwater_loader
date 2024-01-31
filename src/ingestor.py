@@ -1,4 +1,4 @@
-from typing import List, TypedDict
+from typing import List, TypedDict, Optional
 import time as time
 import glob
 from pathlib import Path
@@ -24,8 +24,14 @@ class FileMapping(TypedDict):
 def _table_exists(table_name: str) -> bool:
     # load the parameters
     params = load_params()
+
+    # check if the database exists at all
+    database_path = Path(params.database_path)
+    if not database_path.exists():
+        return False
     
-    with duckdb.connect(database=str(params.database_path), read_only=True) as db:
+    # check for the table
+    with duckdb.connect(database=str(database_path), read_only=True) as db:
         count = len(db.sql(f"SELECT 'exists' FROM information_schema.tables WHERE table_name='{table_name}';").fetchall())
     if count > 0:
         return True
@@ -33,7 +39,9 @@ def _table_exists(table_name: str) -> bool:
         return False
 
 
-def _create_datasource_table(entry: Entry, table_name: str) -> str:
+def _create_datasource_table(entry: Entry, table_name: str, use_spatial: bool = False) -> str:
+    if use_spatial:
+        raise NotImplementedError('There is still an error with the spatial type.')
     # get the parameters
     params = load_params()
 
@@ -42,30 +50,31 @@ def _create_datasource_table(entry: Entry, table_name: str) -> str:
     temporal_dims = entry.datasource.temporal_scale.dimension_names
     variable_dims = entry.datasource.variable_names
     
-    # build the SQL
-    sql = f"CREATE TABLE {table_name} ("
+    # container for the coulumn names
+    column_names = []
     
     # tempral dimensions
     for dim in temporal_dims:
-        sql += f"{dim} TIMESTAMP, "
+       column_names.append(f" {dim} TIMESTAMP")
     
     # spatial dimensions
-    if len(spatial_dims) == 2:
-        sql += f"cell BOX_2D, "
+    if len(spatial_dims) == 2 and use_spatial:
+        column_names.append(f" cell BOX_2D")
     else:
-        sql += ', '.join([f"{dim} DOUBLE" for dim in spatial_dims])
+        column_names.append(' ' + ','.join([f" {dim} DOUBLE" for dim in spatial_dims]))
     
     # variable dimensions
-    sql += ', '.join([f"{dim} DOUBLE" for dim in variable_dims])
+    column_names.append(' ' + ','.join([f" {dim} DOUBLE" for dim in variable_dims]))
 
-    # close the sql statement
-    sql += ");"
+    # build the sql statement
+    sql = f"CREATE TABLE {table_name} ({','.join(column_names)});"
 
     # get the database path
     dbname = str(params.database_path)
 
     # run the sql statement
     with duckdb.connect(database=dbname, read_only=False) as db:
+        db.install_extension('spatial')
         db.load_extension('spatial')
         logger.info(f"duckdb {dbname} -c \"{sql}\"")
         db.execute(sql)
@@ -73,7 +82,10 @@ def _create_datasource_table(entry: Entry, table_name: str) -> str:
     return dbname
 
 
-def _create_insert_sql(entry: Entry, table_name: str, source_name: str = 'df') -> str:
+def _create_insert_sql(entry: Entry, table_name: str, source_name: str = 'df', use_spatial: bool = False) -> str:
+    if use_spatial:
+        raise NotImplementedError('There is still an error with the spatial type.')
+    
     # get the parameters
     params = load_params()
 
@@ -83,24 +95,28 @@ def _create_insert_sql(entry: Entry, table_name: str, source_name: str = 'df') -
     variable_dims = entry.datasource.variable_names
 
     # build the SQL
-    sql = f"INSERT INTO {table_name} SELECT"
+    sql = f"INSERT INTO {table_name} SELECT "
+
+    # containe for selecting column names
+    column_names = []
 
     # tempral dimensions
-    sql += ', '.join(temporal_dims)
+    if len(temporal_dims) > 0:
+        column_names.append(f" {', '.join(temporal_dims)} ")
 
     # spatial dimensions
-    if len(spatial_dims) == 2:
-        sql += f"({','.join(spatial_dims)})::BOX_2D AS cell"
+    if len(spatial_dims) == 2 and use_spatial:
+       column_names.append(f" ({','.join(spatial_dims)})::BOX_2D AS cell ")
     else:
-        sql += ', '.join(spatial_dims)
+        column_names.append(f" {', '.join(spatial_dims)} ")
 
     # variable dimensions
-    sql += ', '.join(variable_dims)
+    column_names.append(f" {', '.join(variable_dims)} ")
 
     # close the sql statement
-    sql += f" FROM {source_name};"
+    final_sql = f"{sql} {','.join(column_names)} FROM {source_name};"
 
-    return sql
+    return final_sql
 
 
 def load_files(file_mapping: List[FileMapping]) -> str:
@@ -115,7 +131,7 @@ def load_files(file_mapping: List[FileMapping]) -> str:
 
         # data path might be a directory
         if data_path.is_dir():
-            files = glob.glob(str(data_path / '**' / '*'))
+            files = glob.glob(str(data_path / '**' / '*'), recursive=True)
         else:
             files = [str(data_path)]
         
@@ -182,6 +198,7 @@ def load_xarray_to_duckdb(entry: Entry, data: xr.Dataset) -> str:
 
         # load to duckdb
         with duckdb.connect(database=str(params.database_path), read_only=False) as db:
+            db.load_extension('spatial')
             sql = _create_insert_sql(entry, table_name)
 
             # build the sql statement
@@ -239,15 +256,15 @@ def load_metadata_to_duckdb() -> str:
     # build the sql statement to load all metadata
     meta_paths = str(params.dataset_path / '*.metadata.json')
     
-    # get a connection to the database
+    # check if the metadata table exists
+    if not _table_exists('metadata'):
+        logger.debug(f"Database {params.database_path} does not contain a table 'metadata'. Creating it now...")
+        sql = f"CREATE TABLE metadata AS SELECT * FROM '{meta_paths}';"
+    else:
+        sql = f"INSERT INTO metadata SELECT * FROM '{meta_paths}';"
+
+    # get a connection to the database and run the command
     with duckdb.connect(database=str(params.database_path), read_only=False) as db:
-        # check if the table metadata exists
-        if not _table_exists('metadata'):
-            logger.debug(f"Database {params.database_path} does not contain a table 'metadata'. Creating it now...")
-            sql = f"CREATE TABLE metadata AS SELECT * FROM '{meta_paths}';"
-        else:
-            sql = f"INSERT INTO metadata SELECT * FROM '{meta_paths}';"
-        
         # execute
         db.execute(sql)
         logger.info(f"duckdb - {sql}")
@@ -257,3 +274,35 @@ def load_metadata_to_duckdb() -> str:
     logger.info(f"took {t2-t1:.2f} seconds")
 
     return str(params.database_path)
+
+
+# integration views
+def _get_database_path(database_path: Optional[str] = None) -> str:
+    # check if we have a database path
+    if database_path is None:
+        params = load_params()
+        database_path = str(params.database_path)
+    
+    # get the database name
+    return database_path
+
+def list_tables(database_path: Optional[str] = None) -> List[str]:
+    # check if we have a database path
+    db_path = _get_database_path(database_path)
+    
+    # create the sql
+    sql = "SELECT table_name FROM information_schema.tables WHERE table_name not like '%_aggregate' AND table_name != 'metadata';"
+
+    # connect to the database and run
+    with duckdb.connect(database=db_path, read_only=True) as db:
+        tables = db.sql().fetchnumpy().get('table_name').tolist()
+    
+    # return the tables
+    return tables
+
+
+def add_spatial_integration(entry: Entry, table_name: str, database_path: Optional[str] = None):
+    # check if we have a database path
+    db_path = _get_database_path(database_path)
+
+    # 
