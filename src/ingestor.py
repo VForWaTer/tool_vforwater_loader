@@ -41,8 +41,8 @@ CellAlignFunc = dict(
     floor = 'FLOOR',
     ceil='CEIL',
     round='ROUND',
-    center='CENTER',
-    centroid='CENTROID',
+    center='ROUND',
+    centroid='ROUND',
     lowerleft='FLOOR',
     upperright='CEIL',
 )
@@ -412,7 +412,7 @@ def add_spatial_integration(entry: Entry, table_name: str, database_path: Option
     # define the inner transform statement
     # TODO: DuckDB only supports 2D points, thus we need to check that here and build custom handling for z-dimensions
     if len(entry.datasource.spatial_scale.dimension_names) == 2:
-        INNER = f"SELECT ST_Transform(ST_Point(x, y), 'epsg:4326', 'epsg:{target_epsg}') as geom, {', '.join(variable_names)} FROM {table_name}"
+        INNER = f"SELECT ST_Transform(ST_Point(lon, lat), 'epsg:4326', 'epsg:{target_epsg}') as geom, {', '.join(variable_names)} FROM {table_name}"
     else:
         raise NotImplementedError(f"Currently, non-2D spatial dimensions are not supported for spatial integration.")
         
