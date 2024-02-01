@@ -2,6 +2,7 @@ from typing import List, TypedDict, Optional
 import time as time
 import glob
 from pathlib import Path
+from enum import Enum
 
 from tqdm import tqdm
 import rioxarray
@@ -14,6 +15,48 @@ from metacatalog.models import Entry
 
 from logger import logger
 from param import load_params
+
+SPATIAL_DIMENSIONS = ('lon', 'lat', 'z')
+
+
+AGGREGATIONS = dict(
+    mean="AVG({variable}) AS mean",
+    std="STDDEV({variable}) AS std",
+    kurtosis="KURTOSIS({variable}) AS kurtosis",
+    skewness="SKEWNESS({variable}) AS skewness",
+    median="MEDIAN({variable}) AS median",
+    min="MIN({variable}) AS min",
+    max="MAX({variable}) AS max",
+    sum="SUM({variable}) AS sum",
+    count="COUNT({variable}) AS count",
+    q25="quantile_disc({variable}, 0.25) as quartile_25",
+    q75="quantile_disc({variable}, 0.75) as quartile_75",
+    entropy="entropy({variable}) as entropy",
+#    geomean="GEOMEAN({variable}) as geomean",              # does not exist for v0.8.1!
+    histogram="histogram({variable}) as histogram"
+)
+
+
+CellAlignFunc = dict(
+    floor = 'FLOOR',
+    ceil='CEIL',
+    round='ROUND',
+    center='CENTER',
+    centroid='CENTROID',
+    lowerleft='FLOOR',
+    upperright='CEIL',
+)
+
+
+# class AggregationLevel(Enum):
+#     second = 'second'
+#     minute = 'minute'
+#     hour = 'hour'
+#     day = 'day'
+#     month = 'month'
+#     year = 'year'
+#     decade = 'decade'
+#     century = 'century'
 
 
 class FileMapping(TypedDict):
@@ -54,14 +97,14 @@ def _create_datasource_table(entry: Entry, table_name: str, use_spatial: bool = 
     column_names = []
     
     # tempral dimensions
-    for dim in temporal_dims:
-       column_names.append(f" {dim} TIMESTAMP")
+    if len(temporal_dims) > 0:
+       column_names.append(f" time TIMESTAMP")
     
     # spatial dimensions
     if len(spatial_dims) == 2 and use_spatial:
         column_names.append(f" cell BOX_2D")
     else:
-        column_names.append(' ' + ','.join([f" {dim} DOUBLE" for dim in spatial_dims]))
+        column_names.append(' ' + ','.join([f" {name} DOUBLE" for dim, name in zip(spatial_dims, SPATIAL_DIMENSIONS)]))
     
     # variable dimensions
     column_names.append(' ' + ','.join([f" {dim} DOUBLE" for dim in variable_dims]))
@@ -102,13 +145,13 @@ def _create_insert_sql(entry: Entry, table_name: str, source_name: str = 'df', u
 
     # tempral dimensions
     if len(temporal_dims) > 0:
-        column_names.append(f" {', '.join(temporal_dims)} ")
+        column_names.append(f" {temporal_dims[0]} as time ")
 
     # spatial dimensions
     if len(spatial_dims) == 2 and use_spatial:
        column_names.append(f" ({','.join(spatial_dims)})::BOX_2D AS cell ")
     else:
-        column_names.append(f" {', '.join(spatial_dims)} ")
+        column_names.append(' ' + ', '.join([f"{dim} AS {name}" for dim, name in zip(spatial_dims, SPATIAL_DIMENSIONS)]))
 
     # variable dimensions
     column_names.append(f" {', '.join(variable_dims)} ")
@@ -136,17 +179,35 @@ def load_files(file_mapping: List[FileMapping]) -> str:
             files = [str(data_path)]
         
         # load all files composing this data source into the database
+        table_names = []
         for fname in files:
             # handle import 
             try:
-                _switch_source_loader(entry, fname)
+                table_name = _switch_source_loader(entry, fname)
+                table_names.append(table_name)
             except:
                 logger.exception(f"ERRORED on loading file <{fname}>")
                 continue
         
+        # get a set of all involved table names
+        table_names = set(table_names)
+        
+        # create the prepared aggregation statement for each table
+        for table_name in table_names:
+            try:
+                add_temporal_integration(entry=entry, table_name=table_name, funcs=None)
+            except Exception as e:
+                logger.exception(f"ERRORED on adding temporal integration for table <{table_name}>")
+            
+            try:
+                # TODO: the hard coded params should be changeable
+                add_spatial_integration(entry=entry, table_name=table_name, funcs=None, target_epsg=3857, algin_cell='center')
+            except Exception as e:
+                logger.exception(f"ERRORED on adding spatial integration for table <{table_name}>")
+        
     # now load all metadata that we can find on the dataset folder level
     load_metadata_to_duckdb()
-    
+
     # return the database path
     return str(params.database_path)
 
@@ -213,7 +274,7 @@ def load_xarray_to_duckdb(entry: Entry, data: xr.Dataset) -> str:
     t2 = time.time()
     logger.info(f"took {t2-t1:.2f} seconds")
 
-    return str(params.database_path)
+    return table_name
 
 
 def load_parquet_to_duckdb(entry: Entry, file_name: str) -> str:
@@ -244,6 +305,8 @@ def load_parquet_to_duckdb(entry: Entry, file_name: str) -> str:
     # finish
     t2 = time.time()
     logger.info(f"took {t2-t1:.2f} seconds")
+
+    return table_name
 
 
 def load_metadata_to_duckdb() -> str:
@@ -286,23 +349,97 @@ def _get_database_path(database_path: Optional[str] = None) -> str:
     # get the database name
     return database_path
 
+
 def list_tables(database_path: Optional[str] = None) -> List[str]:
     # check if we have a database path
     db_path = _get_database_path(database_path)
     
     # create the sql
-    sql = "SELECT table_name FROM information_schema.tables WHERE table_name not like '%_aggregate' AND table_name != 'metadata';"
+    sql = "SELECT table_name FROM information_schema.tables WHERE table_name not like '%_aggregate' AND table_name not like '%_integrate' AND table_name != 'metadata';"
 
     # connect to the database and run
     with duckdb.connect(database=db_path, read_only=True) as db:
-        tables = db.sql().fetchnumpy().get('table_name').tolist()
+        tables = db.sql(sql).fetchnumpy().get('table_name').tolist()
     
     # return the tables
     return tables
 
 
-def add_spatial_integration(entry: Entry, table_name: str, database_path: Optional[str] = None):
+def add_temporal_integration(entry: Entry, table_name: str, database_path: Optional[str] = None, funcs: Optional[List[str]] = None) -> None:
+    # if there is no temporal dimension, we cannot integrate
+    if entry.datasource.temporal_scale is None:
+        return 
+    
     # check if we have a database path
     db_path = _get_database_path(database_path)
 
-    # 
+    # create a container for the aggregation statements
+    aggr_statements = []
+
+    # extract the time dimension and the variable names
+    aggr_statements.append("date_trunc(precision, time) AS time")
+    
+    # build the aggregation statements for all variables
+    if funcs is None:
+        funcs = list(AGGREGATIONS.keys())
+    
+    # add every requested aggregation function for each variable
+    for variable in entry.datasource.variable_names:
+        for func in funcs:
+            aggr_statements.append(AGGREGATIONS[func].format(variable=variable))
+    
+    # build the sql statement
+    sql = f"CREATE MACRO {table_name}_temporal_aggregate(precision) AS TABLE SELECT {', '.join(aggr_statements)} FROM {table_name} GROUP BY date_trunc(precision, time);"
+    logger.info(f"duckdb - {sql}")
+
+    # connect to the database and run
+    with duckdb.connect(database=db_path, read_only=False) as db:
+        db.execute(sql)
+
+
+
+def add_spatial_integration(entry: Entry, table_name: str, database_path: Optional[str] = None, funcs: Optional[List[str]] = None, target_epsg: int = 3857, algin_cell: str = 'center') -> None:
+    # if there is no spatial dimension, we cannot integrate
+    if entry.datasource.spatial_scale is None:
+        return
+
+    # check if we have a database path
+    db_path = _get_database_path(database_path)
+
+    # load the variable names
+    variable_names = entry.datasource.variable_names
+    
+    # define the inner transform statement
+    # TODO: DuckDB only supports 2D points, thus we need to check that here and build custom handling for z-dimensions
+    if len(entry.datasource.spatial_scale.dimension_names) == 2:
+        INNER = f"SELECT ST_Transform(ST_Point(x, y), 'epsg:4326', 'epsg:{target_epsg}') as geom, {', '.join(variable_names)} FROM {table_name}"
+    else:
+        raise NotImplementedError(f"Currently, non-2D spatial dimensions are not supported for spatial integration.")
+        
+    # create a container for the aggregation statements
+    aggr_statements = []
+
+    # build the aggregation statements for all variables
+    if funcs is None:
+        funcs = list(AGGREGATIONS.keys())
+    
+    # add every requested aggregation function for each variable
+    for variable in entry.datasource.variable_names:
+        for func in funcs:
+            aggr_statements.append(AGGREGATIONS[func].format(variable=variable))
+
+    # build the spatial aggregation statement
+    # get the cell alignment function
+    ALIGN = CellAlignFunc[algin_cell.lower()]
+    
+    # build the cell align sql statement
+    SPATIAL_AGG = f"{ALIGN}(ST_Y(geom) / resolution)::int * resolution AS y, {ALIGN}(ST_X(geom) / resolution)::int * resolution AS x"
+            
+    # build the final sql statement
+    sql = f"CREATE MACRO {table_name}_spatial_aggregate(resolution) AS TABLE WITH t as ({INNER}) SELECT {SPATIAL_AGG}, {', '.join(aggr_statements)} FROM t GROUP BY x, y;"
+    logger.info(f"duckdb - {sql}")
+
+    # connect to the database and run
+    with duckdb.connect(database=db_path, read_only=False) as db:
+        db.load_extension('spatial')
+        db.execute(sql)
