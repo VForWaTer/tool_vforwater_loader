@@ -194,16 +194,25 @@ def load_files(file_mapping: List[FileMapping]) -> str:
         
         # create the prepared aggregation statement for each table
         for table_name in table_names:
+            # temporal aggregation
             try:
                 add_temporal_integration(entry=entry, table_name=table_name, funcs=None)
             except Exception as e:
                 logger.exception(f"ERRORED on adding temporal integration for table <{table_name}>")
             
+            # spatial aggregation
             try:
                 # TODO: the hard coded params should be changeable
                 add_spatial_integration(entry=entry, table_name=table_name, funcs=None, target_epsg=3857, algin_cell='center')
             except Exception as e:
                 logger.exception(f"ERRORED on adding spatial integration for table <{table_name}>")
+            
+            # spatio-temporal aggregation
+            try:
+                # TODO: the hard coded params should be changeable
+                add_spatial_integration(entry=entry, table_name=table_name, spatio_temporal=True, funcs=None, target_epsg=3857, algin_cell='center')
+            except Exception as e:
+                logger.exception(f"ERRORED on adding spatio-temporal integration for table <{table_name}>")
         
     # now load all metadata that we can find on the dataset folder level
     load_metadata_to_duckdb()
@@ -398,9 +407,12 @@ def add_temporal_integration(entry: Entry, table_name: str, database_path: Optio
 
 
 
-def add_spatial_integration(entry: Entry, table_name: str, database_path: Optional[str] = None, funcs: Optional[List[str]] = None, target_epsg: int = 3857, algin_cell: str = 'center') -> None:
+def add_spatial_integration(entry: Entry, table_name: str, spatio_temporal: bool = False, database_path: Optional[str] = None, funcs: Optional[List[str]] = None, target_epsg: int = 3857, algin_cell: str = 'center') -> None:
     # if there is no spatial dimension, we cannot integrate
     if entry.datasource.spatial_scale is None:
+        return
+    
+    if entry.datasource.temporal_scale is None and spatio_temporal:
         return
 
     # check if we have a database path
@@ -409,10 +421,12 @@ def add_spatial_integration(entry: Entry, table_name: str, database_path: Option
     # load the variable names
     variable_names = entry.datasource.variable_names
     
+    # define the time aggregator if we are spatio-temporal
+    temporal_agg = 'date_trunc(precision, time) AS time, ' if spatio_temporal else ''
     # define the inner transform statement
     # TODO: DuckDB only supports 2D points, thus we need to check that here and build custom handling for z-dimensions
     if len(entry.datasource.spatial_scale.dimension_names) == 2:
-        INNER = f"SELECT ST_Transform(ST_Point(lon, lat), 'epsg:4326', 'epsg:{target_epsg}') as geom, {', '.join(variable_names)} FROM {table_name}"
+        INNER = f"SELECT {temporal_agg} ST_Transform(ST_Point(lon, lat), 'epsg:4326', 'epsg:{target_epsg}') as geom, {', '.join(variable_names)} FROM {table_name}"
     else:
         raise NotImplementedError(f"Currently, non-2D spatial dimensions are not supported for spatial integration.")
         
@@ -435,8 +449,15 @@ def add_spatial_integration(entry: Entry, table_name: str, database_path: Option
     # build the cell align sql statement
     SPATIAL_AGG = f"{ALIGN}(ST_Y(geom) / resolution)::int * resolution AS y, {ALIGN}(ST_X(geom) / resolution)::int * resolution AS x"
             
+    #figure out the macro name
+    if spatio_temporal:
+        macro_name = f"{table_name}_spatio_temporal_aggregate"
+        sql = f"CREATE MACRO {macro_name}(resolution, precision) AS TABLE WITH t as ({INNER}) SELECT time, {SPATIAL_AGG}, {', '.join(aggr_statements)} FROM t GROUP BY time, x, y;"
+    else:
+        macro_name = f"{table_name}_spatial_aggregate"
+        sql = f"CREATE MACRO {macro_name}(resolution) AS TABLE WITH t as ({INNER}) SELECT {SPATIAL_AGG}, {', '.join(aggr_statements)} FROM t GROUP BY x, y;"
     # build the final sql statement
-    sql = f"CREATE MACRO {table_name}_spatial_aggregate(resolution) AS TABLE WITH t as ({INNER}) SELECT {SPATIAL_AGG}, {', '.join(aggr_statements)} FROM t GROUP BY x, y;"
+    
     logger.info(f"duckdb - {sql}")
 
     # connect to the database and run
