@@ -27,9 +27,30 @@ tools:
         type: datetime
         description: |
           The end date of the datasetm, if a time dimension applies to the dataset.
-      # integrate dataset
-      # mode of operation
-      # keep intermediate files
+      integration:
+        type: enum
+        values:
+          - none
+          - all
+          - sptatial
+          - temporal
+        description: |
+          The mode of operation for the integration of each all data files associated to each data source
+          into a common DuckDB-based dataset. This dataset includes data for a unified spatial and temporal
+          extent and includes macros for aggregation. By setting `integration` the default integrations are
+          selected. The resulting database can still be used to query different aggregation levels. 
+          - `none`: No integration will be performed and the DuckDB database will **NOT** be created.
+          - `all`: Temporal and spatial scale aggregations will be integrated, if the scale is defined in the dataset metadata.
+          - `spatial`: Only results for spatial aggregations will be provided.
+          - `temporal`: Only results for temporal aggregations will be provided.
+        optional: true
+      keep_data_files:
+        type: boolean
+        optional: true
+        description: |
+          If set to `false`, the data files clipped to the spatial and temporal scale as defined in the 
+          data-source metadata will not be kept. This saves a lot of disk space for the output.
+          If set to `true` (default behavior), then there will be a `/out/datasets` directory in the output.
       connection:
         type: string
         optional: true

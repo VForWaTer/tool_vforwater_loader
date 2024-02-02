@@ -41,8 +41,11 @@ class Params(BaseModel):
 
     # optional parameter to configure output
     keep_data_files: bool = True
-
     database_name: str = 'dataset.db'
+
+    # optional parameter to provide result output
+    precision: str = 'day'
+    resolution: int = 5000
 
     # stuff that we do not change in the tool
     base_path: str = '/out'
