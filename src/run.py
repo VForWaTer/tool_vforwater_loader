@@ -3,7 +3,7 @@ import sys
 from datetime import datetime as dt
 import time
 from pathlib import Path
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ThreadPoolExecutor as PoolExecutor
 
 from json2args import get_parameter
 from dotenv import load_dotenv
@@ -14,6 +14,7 @@ from param import load_params, Integrations
 from loader import load_entry_data
 from logger import logger
 import ingestor
+import aggregator
 from clip import reference_area_to_file
 
 # parse parameters
@@ -55,7 +56,7 @@ session = api.connect_database(connection)
 
 # initialize a new log-file by overwriting any existing one
 # build the message for now
-MSG = f"""
+MSG = f"""\
 This is the V-FOR-WaTer data loader report
 
 The following information has been submitted to the tool:
@@ -63,6 +64,8 @@ The following information has been submitted to the tool:
 START DATE:         {params.start_date}
 END DATE:           {params.end_date}
 REFERENCE AREA:     {params.reference_area is not None}
+INTEGRATION:        {params.integration}
+KEEP DATA FILES:    {params.keep_data_files}
 
 DATASET IDS:
 {', '.join(map(str, params.dataset_ids))}
@@ -70,9 +73,11 @@ DATASET IDS:
 DATABASE CONNECTION: {connection is not None}
 DATABASE URI:        {session.bind}
 
-NOTE
-----
-The current version of the tool does only select files within a time range for multi-file netCDFs.
+AGGREGATION SETTINGS
+--------------------
+PRECISION:          {params.precision}
+RESOLUTION:         {params.resolution}x{params.resolution}
+TARGET CRS:         EPSG:3857
 
 Processing logs:
 ----------------
@@ -96,7 +101,7 @@ if params.reference_area is not None:
 # load the datasets
 # save the entries and their data_paths for later use
 file_mapping = []
-with ProcessPoolExecutor() as executor:
+with PoolExecutor() as executor:
     for dataset_id in tqdm(params.dataset_ids):
         try:
             entry = api.find_entry(session, id=dataset_id, return_iterator=True).one()
@@ -121,7 +126,7 @@ if params.integration == Integrations.NONE:
 
 # check if we have any files to process
 elif len(file_mapping) > 0:
-    logger.info(f"Starting to create a consistent DUckDB dataset at {params.database_path}. Check out https://duckdb.org/docs/api/overview to learn more about DuckDB.")
+    logger.info(f"Starting to create a consistent DuckDB dataset at {params.database_path}. Check out https://duckdb.org/docs/api/overview to learn more about DuckDB.")
     
     # start a timer 
     t1 = time.time()
@@ -130,6 +135,24 @@ elif len(file_mapping) > 0:
     logger.info(f"Finished creating the dataset at {path} in {t2-t1:.2f} seconds.")
 else:
     logger.warning("It seems like no data files have been processed. This might be an error.")
+
+# switch the type of integrations
+with PoolExecutor() as executor:
+    if params.integration == Integrations.TEMPORAL or params.integration == Integrations.ALL:
+        # run the temporal aggregation
+        aggregator.aggregate_scale(aggregation_scale='temporal', executor=executor)
+    
+    if params.integration == Integrations.SPATIAL or params.integration == Integrations.ALL:
+        # run the spatial aggregation
+        aggregator.aggregate_scale(aggregation_scale='spatial', executor=executor)
+    
+    if params.integration == Integrations.SPATIO_TEMPORAL or params.integration == Integrations.ALL:
+        # run the spatio-temporal aggregation
+        aggregator.aggregate_scale(aggregation_scale='spatiotemporal', executor=executor)
+
+    # wait until all results are finished
+    executor.shutdown(wait=True)
+    logger.info(f"Pool {type(executor).__name__} finished all tasks and shutdown.")
 
 # --------------------------------------------------------------------------- #
 # we're finished.
