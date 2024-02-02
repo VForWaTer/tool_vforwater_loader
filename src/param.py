@@ -19,6 +19,7 @@ import geopandas as gpd
 class Integrations(str, Enum):
     TEMPORAL = 'temporal'
     SPATIAL = 'spatial'
+    SPATIO_TEMPORAL = 'spatiotemporal'
     ALL = 'all'
     NONE = 'none'
 
@@ -62,6 +63,14 @@ class Params(BaseModel):
         p.mkdir(parents=True, exist_ok=True)
 
         # return the path
+        return p
+    
+    @property
+    def result_path(self) -> Path:
+        # create the results path if it does not exist
+        p = Path(self.base_path) / 'results'
+        p.mkdir(parents=True, exist_ok=True)
+
         return p
     
     @property

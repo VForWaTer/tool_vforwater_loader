@@ -40,9 +40,10 @@ tools:
           extent and includes macros for aggregation. By setting `integration` the default integrations are
           selected. The resulting database can still be used to query different aggregation levels. 
           - `none`: No integration will be performed and the DuckDB database will **NOT** be created.
-          - `all`: Temporal and spatial scale aggregations will be integrated, if the scale is defined in the dataset metadata.
+          - `all`: Temporal, spatial and spatio-temporal scale aggregations will be integrated, if the scale is defined in the dataset metadata.
           - `spatial`: Only results for spatial aggregations will be provided.
           - `temporal`: Only results for temporal aggregations will be provided.
+          - `spatiotemporal`: Only results for spatio-temporal aggregations will be provided.
         optional: true
       keep_data_files:
         type: boolean
