@@ -9,11 +9,15 @@ import shutil
 
 from metacatalog.models import Entry
 from dask.dataframe import DataFrame as DaskDataFrame
+import polars as pl
 import pandas as pd
 import xarray as xr
 
 from logger import logger
 
+
+# create a union of all supported Dataframe types
+DataFrame = Union[pd.DataFrame, DaskDataFrame, pl.DataFrame]
 
 # create a custom serializer for Entry dict
 class EntryDictSerializer(json.JSONEncoder):
@@ -28,7 +32,7 @@ class EntryDictSerializer(json.JSONEncoder):
         return super().default(obj)
 
 # TODO: target path should be createable from the outside
-def dispatch_save_file(entry: Entry, data: Union[pd.DataFrame, DaskDataFrame, xr.Dataset], executor: Executor, base_path: str = '/out', target_name: Optional[str] = None, save_meta: bool = True) -> Future:
+def dispatch_save_file(entry: Entry, data: DataFrame | xr.Dataset, executor: Executor, base_path: str = '/out', target_name: Optional[str] = None, save_meta: bool = True) -> Future:
     # get the target_name
     if target_name is None:
         target_path = Path(base_path) / f"{entry.variable.name.replace(' ', '_')}_{entry.id}"
@@ -48,7 +52,7 @@ def dispatch_save_file(entry: Entry, data: Union[pd.DataFrame, DaskDataFrame, xr
             logger.info(f"Saved metadata for dataset <ID={entry.id}> to {metafile_name}.")
             
     # switch the data type
-    if isinstance(data, (pd.DataFrame, DaskDataFrame)):
+    if isinstance(data, (pd.DataFrame, DaskDataFrame, pl.DataFrame)):
         if not str(target_path).endswith('.parquet'):
             target_path = f"{target_path}.parquet"
         future = executor.submit(dataframe_to_parquet_saver, data, target_path)
@@ -64,13 +68,33 @@ def dispatch_save_file(entry: Entry, data: Union[pd.DataFrame, DaskDataFrame, xr
     return future
 
 
-def dataframe_to_parquet_saver(data: Union[pd.DataFrame, DaskDataFrame], target_name: str) -> str:
+def dispatch_result_saver(file_name: str, data: DataFrame, executor: Executor) -> Future:
+    # define an exception handler
+    def exception_handler(future: Future):
+        exc = future.exception()
+        if exc is not None:
+            logger.error(f"Saving result file {file_name} errored: {str(exc)}")
+    
+    # switch the data type:
+    if isinstance(data, (pd.DataFrame, DaskDataFrame, pl.DataFrame)):
+        future = executor.submit(dataframe_to_parquet_saver, data, file_name)
+    else:
+        raise NotImplementedError(f"Right now, the result handler can only dispatch save actions for DataFrames. Got a {type(data)} instead.")
+    
+    # add the exception handler
+    future.add_done_callback(exception_handler)
+    return future
+    
+
+def dataframe_to_parquet_saver(data: DataFrame, target_name: str) -> str:
     t1 = time.time()
     if isinstance(data, pd.DataFrame):
         data.to_parquet(target_name, index=False)
     elif isinstance(data, DaskDataFrame):
         for partition in data.partitions:
             partition.compute().to_parquet(target_name, append=True, index=False)
+    elif isinstance(data, pl.DataFrame):
+        data.write_parquet(target_name)
     else:
         logger.error(f"Could not save {target_name} as it is not a pandas or dask dataframe. Got a {type(data)} instead.")
     t2 = time.time()
