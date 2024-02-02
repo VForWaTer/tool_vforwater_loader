@@ -60,6 +60,11 @@ class FileMapping(TypedDict):
     data_path: str
 
 
+AGGREGATION_VIEW = """CREATE OR REPLACE VIEW aggregations AS WITH aggs AS 
+(SELECT str_split(function_name, '_') AS parts, * FROM duckdb_functions() WHERE function_type='table_macro' AND schema_name='main' AND parts[-1] == 'aggregate')
+SELECT parts[-3]::int as id, array_to_string(parts[:-3], '_') as variable, array_to_string(parts[:-2], '_') as data_table, parts[-2] as aggregation_scale, function_name, parameters, from aggs;
+"""
+
 def _table_exists(table_name: str) -> bool:
     # load the parameters
     params = load_params()
@@ -337,6 +342,10 @@ def load_metadata_to_duckdb() -> str:
         db.execute(sql)
         logger.info(f"duckdb - {sql}")
 
+        # add the overview of aggregations to the metadata
+        db.execute(AGGREGATION_VIEW)
+        logger.info(f"duckdb - {AGGREGATION_VIEW}")
+
     # stop the timer
     t2 = time.time()
     logger.info(f"took {t2-t1:.2f} seconds")
@@ -353,21 +362,6 @@ def _get_database_path(database_path: Optional[str] = None) -> str:
     
     # get the database name
     return database_path
-
-
-def list_tables(database_path: Optional[str] = None) -> List[str]:
-    # check if we have a database path
-    db_path = _get_database_path(database_path)
-    
-    # create the sql
-    sql = "SELECT table_name FROM information_schema.tables WHERE table_name not like '%_aggregate' AND table_name not like '%_integrate' AND table_name != 'metadata';"
-
-    # connect to the database and run
-    with duckdb.connect(database=db_path, read_only=True) as db:
-        tables = db.sql(sql).fetchnumpy().get('table_name').tolist()
-    
-    # return the tables
-    return tables
 
 
 def add_temporal_integration(entry: Entry, table_name: str, database_path: Optional[str] = None, funcs: Optional[List[str]] = None) -> None:
@@ -446,7 +440,7 @@ def add_spatial_integration(entry: Entry, table_name: str, spatio_temporal: bool
             
     #figure out the macro name
     if spatio_temporal:
-        macro_name = f"{table_name}_spatio_temporal_aggregate"
+        macro_name = f"{table_name}_spatio-temporal_aggregate"
         sql = f"CREATE MACRO {macro_name}(resolution, precision) AS TABLE WITH t as ({INNER}) SELECT time, {SPATIAL_AGG}, {', '.join(aggr_statements)} FROM t GROUP BY time, x, y;"
     else:
         macro_name = f"{table_name}_spatial_aggregate"
