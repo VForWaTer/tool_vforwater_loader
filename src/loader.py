@@ -216,9 +216,9 @@ def _clip_netcdf_xarray(entry: Entry, file_name: str, data: xr.Dataset, params: 
     # then the region clip
     if entry.datasource.temporal_scale is not None:
         time_dim = entry.datasource.temporal_scale.dimension_names[0]
-        ds.chunk({entry.datasource.temporal_scale.dimension_names[0]: 1})
+        ds.chunk({entry.datasource.temporal_scale.dimension_names[0]: 'auto'})
 
-        logger.info(f"python - ds.chunk{{'{time_dim}': 1}})")
+        logger.info(f"python - ds.chunk{{'{time_dim}': 'auto'}})")
     else:
         time_dim = None
 

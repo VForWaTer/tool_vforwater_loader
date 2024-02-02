@@ -2,14 +2,10 @@ from typing import List, TypedDict, Optional
 import time as time
 import glob
 from pathlib import Path
-from enum import Enum
 
 from tqdm import tqdm
 import rioxarray
 import xarray as xr
-import geopandas as gpd
-from dask.dataframe import DataFrame
-from geocube.api.core import make_geocube
 import duckdb
 from metacatalog.models import Entry
 
@@ -404,7 +400,6 @@ def add_temporal_integration(entry: Entry, table_name: str, database_path: Optio
     # connect to the database and run
     with duckdb.connect(database=db_path, read_only=False) as db:
         db.execute(sql)
-
 
 
 def add_spatial_integration(entry: Entry, table_name: str, spatio_temporal: bool = False, database_path: Optional[str] = None, funcs: Optional[List[str]] = None, target_epsg: int = 3857, algin_cell: str = 'center') -> None:

@@ -40,7 +40,8 @@ class Params(BaseModel):
     integration: Integrations = Integrations.ALL
 
     # optional parameter to configure output
-    keep_intermediate: bool = False
+    keep_data_files: bool = True
+
     database_name: str = 'dataset.db'
 
     # stuff that we do not change in the tool
@@ -48,9 +49,9 @@ class Params(BaseModel):
     netcdf_backend: NetCDFBackends = NetCDFBackends.XARRAY
 
     @property
-    def intermediate_path(self) -> Path:
-        if self.keep_intermediate:
-            p = Path(self.base_path) / 'intermediate'
+    def dataset_path(self) -> Path:
+        if self.keep_data_files:
+            p = Path(self.base_path) / 'datasets'
         else:
             p = Path(tempfile.mkdtemp())
         
@@ -58,13 +59,6 @@ class Params(BaseModel):
         p.mkdir(parents=True, exist_ok=True)
 
         # return the path
-        return p
-    
-    @property
-    def dataset_path(self) -> Path:
-        p = Path(self.base_path) / 'datasets'
-        p.mkdir(parents=True, exist_ok=True)
-
         return p
     
     @property

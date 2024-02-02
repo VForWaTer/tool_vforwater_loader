@@ -1,5 +1,7 @@
 import os
+import sys
 from datetime import datetime as dt
+import time
 from pathlib import Path
 from concurrent.futures import ProcessPoolExecutor
 
@@ -8,9 +10,10 @@ from dotenv import load_dotenv
 from metacatalog import api
 from tqdm import tqdm
 
-from param import load_params
+from param import load_params, Integrations
 from loader import load_entry_data
 from logger import logger
+import ingestor
 from clip import reference_area_to_file
 
 # parse parameters
@@ -77,8 +80,15 @@ Processing logs:
 with open('/out/processing.log', 'w') as f:
     f.write(MSG)
 
+# if the integration is set to NONE and the user does not want to keep the data files, there will be no output
+if params.integration == Integrations.NONE and not params.keep_data_files:
+    logger.critical("You have set the integration to NONE and do not want to keep the data files. This will result in no output.")
+    sys.exit(1)
+
 # --------------------------------------------------------------------------- #
 # Here is the actual tool
+tool_start = time.time()
+
 # save the reference area to a file for later reuse
 if params.reference_area is not None:
     reference_area = reference_area_to_file()
@@ -105,8 +115,26 @@ with ProcessPoolExecutor() as executor:
     logger.info(f"Pool {type(executor).__name__} finished all tasks and shutdown.")
 
 # here to the stuff for creating a consistent dataset
+# check if the user disabled integration
+if params.integration == Integrations.NONE:
+    logger.debug("Integration is disabled. No further processing will be done.")
+
+# check if we have any files to process
+elif len(file_mapping) > 0:
+    logger.info(f"Starting to create a consistent DUckDB dataset at {params.database_path}. Check out https://duckdb.org/docs/api/overview to learn more about DuckDB.")
+    
+    # start a timer 
+    t1 = time.time()
+    path = ingestor.load_files(file_mapping=file_mapping)
+    t2 = time.time()
+    logger.info(f"Finished creating the dataset at {path} in {t2-t1:.2f} seconds.")
+else:
+    logger.warning("It seems like no data files have been processed. This might be an error.")
 
 # --------------------------------------------------------------------------- #
+# we're finished.
+t2 = time.time()
+logger.info(f"Total runtime: {t2-tool_start:.2f} seconds.")
 
 # print out the report
 with open('/out/processing.log', 'r') as f:
