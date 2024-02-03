@@ -79,7 +79,7 @@ dbClose(con)
 
 The [Metacatalog Data Loader](https://github/vforwater/tool_vforwater_loader) creates a number of `MACRO`s 
 In DuckDB a [MACRO](https://duckdb.org/docs/sql/statements/create_macro.html) can be used similar to a function.
-All aggregation MACROs are `TABLE_MACRO`s, which means, the result from these functions can be read like any
+All aggregation MACROs are `TABLE MACRO`s, which means, the result from these functions can be read like any
 other table. Thus, you can use them like the data layers.
 
 The available aggreations are listed below:
@@ -101,7 +101,13 @@ MACRO in the first place.
 
 ### Sample plot
 
-THe plot below loads the aggregated daily data using the `${REPORT_AGG_EXAMPLE}`:
+You can also combine DuckDB CLI with tools like gnuplot to directly generate charts. Ie:
+
+```bash
+/duck/duckdb -readonly -noheader -list /out/dataset.db "SELECT mean FROM  ${REPORT_AGG_EXAMPLE}('day') ORDER BY time ASC;" | gnuplot -p -e 'set terminal dumb size 90, 20; set autoscale; set ylabel "Mean"; set xlabel "DAY"; plot "/dev/stdin" using 0:1 with lines'
+```
+Which yields the following plot, visualizing the aggregated daily data using the `${REPORT_AGG_EXAMPLE}` as a terminal chart.
+In production you should change `gnuplot` to write a png or eps.
 
 ```text
 ${REPORT_OVERVIEW_PLOT}
