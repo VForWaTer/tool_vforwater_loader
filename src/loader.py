@@ -155,7 +155,7 @@ def load_netcdf_file(entry: Entry, executor: Executor) -> str:
         dispatch_save_file(entry=entry, data=data, executor=executor, base_path=str(dataset_base_path), target_name=target_name, save_meta=False)
         # if there are many files, we save the metadata only once
         if i == 0:
-            metafile_name = str(params.dataset_path / f"{filename}.json")
+            metafile_name = str(params.dataset_path / f"{filename}.metadata.json")
             entry_metadata_saver(entry, metafile_name)
             logger.info(f"Saved metadata for dataset <ID={entry.id}> to {metafile_name}.")
 
@@ -227,7 +227,7 @@ def _clip_netcdf_xarray(entry: Entry, file_name: str, data: xr.Dataset, params: 
     region = lonlatbox.rio.clip([ref.geometry[0]], crs=4326)
 
     # log out
-    logger.info(f"python - lonlatbox df.rio.clip_box(({','.join(bounds)}), crs=4326)")
+    logger.info(f"python - lonlatbox df.rio.clip_box(({','.join([str(_) for _ in bounds])}), crs=4326)")
     logger.info(f"python - region = lonlatbox.rio.clip([ref.geometry[0]], crs=4326)")
 
     # do the time clip
@@ -242,7 +242,7 @@ def _clip_netcdf_xarray(entry: Entry, file_name: str, data: xr.Dataset, params: 
 
         # subset the time axis
         region = region.sel(**{time_dim: time_slice})
-        logger.info(f"python - region.sel({time_dim}=slice({time_slice[0]}, {time_slice[1]}))")
+        logger.info(f"python - region.sel({time_dim}=slice({time_slice.start}, {time_slice.stop}))")
     
     t2 = time.time()
     logger.info(f"took {t2-t1:.2f} seconds")

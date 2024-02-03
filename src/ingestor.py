@@ -440,7 +440,7 @@ def add_spatial_integration(entry: Entry, table_name: str, spatio_temporal: bool
             
     #figure out the macro name
     if spatio_temporal:
-        macro_name = f"{table_name}_spatio-temporal_aggregate"
+        macro_name = f"{table_name}_spatiotemporal_aggregate"
         sql = f"CREATE MACRO {macro_name}(resolution, precision) AS TABLE WITH t as ({INNER}) SELECT time, {SPATIAL_AGG}, {', '.join(aggr_statements)} FROM t GROUP BY time, x, y;"
     else:
         macro_name = f"{table_name}_spatial_aggregate"
