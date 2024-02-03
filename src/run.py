@@ -15,6 +15,7 @@ from loader import load_entry_data
 from logger import logger
 import ingestor
 import aggregator
+import reporter
 from clip import reference_area_to_file
 
 # parse parameters
@@ -102,6 +103,7 @@ if params.reference_area is not None:
 # save the entries and their data_paths for later use
 file_mapping = []
 with PoolExecutor() as executor:
+    logger.debug(f"START {type(executor).__name__} - Pool to load and clip data source files.")
     for dataset_id in tqdm(params.dataset_ids):
         try:
             entry = api.find_entry(session, id=dataset_id, return_iterator=True).one()
@@ -117,7 +119,7 @@ with PoolExecutor() as executor:
     
     # wait until all results are finished
     executor.shutdown(wait=True)
-    logger.info(f"Pool {type(executor).__name__} finished all tasks and shutdown.")
+    logger.debug(f"STOP {type(executor).__name__} - Pool finished all tasks and shutdown.")
 
 # here to the stuff for creating a consistent dataset
 # check if the user disabled integration
@@ -138,6 +140,8 @@ else:
 
 # switch the type of integrations
 with PoolExecutor() as executor:
+    logger.debug(f"START {type(executor).__name__} - Pool to ingest data files into a Dataset DuckDB database.")
+
     if params.integration == Integrations.TEMPORAL or params.integration == Integrations.ALL:
         # run the temporal aggregation
         aggregator.aggregate_scale(aggregation_scale='temporal', executor=executor)
@@ -152,9 +156,33 @@ with PoolExecutor() as executor:
 
     # wait until all results are finished
     executor.shutdown(wait=True)
-    logger.info(f"Pool {type(executor).__name__} finished all tasks and shutdown.")
+    logger.debug(f"STOP {type(executor).__name__} - Pool finished all tasks and shutdown.")
 
+
+# finally run a thrid pool to generate reports
+with PoolExecutor() as executor:
+    logger.debug(f"START {type(executor).__name__} - Pool to generate final reports.")
+
+    # create a callback to log exceptions
+    def callback(future):
+        exc = future.excection() 
+        if exc is not None:
+            logger.exception(exc)
+
+    # generate the profile report - start first as this one might potentially take longer
+    # TODO: there should be an option to disable this
+    executor.submit(reporter.generate_profile_report).add_done_callback(callback)
+
+    # generate the readme
+    executor.submit(reporter.generate_readme).add_done_callback(callback)
+
+
+    # wait until all results are finished
+    executor.shutdown(wait=True)
+    logger.debug(f"STOP {type(executor).__name__} - Pool finished all tasks and shutdown.")
 # --------------------------------------------------------------------------- #
+
+
 # we're finished.
 t2 = time.time()
 logger.info(f"Total runtime: {t2-tool_start:.2f} seconds.")
