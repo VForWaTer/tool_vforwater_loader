@@ -141,14 +141,18 @@ def aggregate_scale(aggregation_scale: str, executor: Executor, precision: Optio
         path = params.result_path / f"{layer}_{aggregation_scale}_aggs.parquet"
         dispatch_result_saver(file_name=str(path), data=df, executor=executor)
 
-        # extract the mean information and append it to the means container
-        mean = df[['mean']].rename({'mean': layer})
+        # get the join statement based on aggregation scale
         if aggregation_scale == 'temporal':
-            on = 'time'
+            on = ['time']
         elif aggregation_scale == 'spatial':
             on = ['lon', 'lat']
         elif aggregation_scale == 'spatiotemporal':
             on = ['time', 'lon', 'lat']
+        
+        # extract only the index and column 'mean'
+        mean = df[[*on, 'mean']].rename({'mean': layer})
+
+        # join the means
         if means is None:
             means = mean
         else:
