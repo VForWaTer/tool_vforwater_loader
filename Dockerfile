@@ -31,7 +31,7 @@ RUN pip install geocube
 RUN pip install metacatalog==0.9.1
 
 # Install CDO, might be used to do seltimestep or sellonlatbox and possibly merge
-RUN apt-get install -y cdo
+RUN apt-get install -y cdo gettext gnuplot
 
 # create the tool input structure
 RUN mkdir /in
@@ -40,6 +40,13 @@ RUN mkdir /out
 RUN mkdir /src
 COPY ./src /src
 RUN mv /whitebox/WBT /src/WBT
+
+# download a precompiled binary of duckdb
+RUN mkdir /duck && wget https://github.com/duckdb/duckdb/releases/download/v0.8.0/duckdb_cli-linux-$(uname -m).zip && \
+    unzip duckdb_cli-linux-$(uname -m).zip && \
+    rm duckdb_cli-linux-$(uname -m).zip && \
+    chmod +x ./duckdb && \
+    mv ./duckdb /duck/duckdb
 
 # go to the source directory of this tool
 WORKDIR /src
