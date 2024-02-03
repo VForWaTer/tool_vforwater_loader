@@ -52,6 +52,30 @@ tools:
           If set to `false`, the data files clipped to the spatial and temporal scale as defined in the 
           data-source metadata will not be kept. This saves a lot of disk space for the output.
           If set to `true` (default behavior), then there will be a `/out/datasets` directory in the output.
+      precision:
+        type: enum
+        values:
+          - minute
+          - hour
+          - day
+          - month
+          - year
+          - decade
+        optional: true
+        description: |
+          The precision for aggregations along the temporal scale of the datasets. This parameter does only take effect if
+          the integration includes a data integration along the temporal scale. That includes: `temporal`, `spatiotemporal` and `all`.
+          If integration is set set and no precision is supplied, the tool chooses a suitable precision. This decision is not
+          yet deterministic.
+      resolution:
+        type: integer
+        optional: true
+        description: | 
+          The resolution of the output data. This parameter is only relevant for areal datasets. If the dataset is not areal, this parameter
+          is ignored. If the dataset is areal and the parameter is not set, the original resolution of the dataset is used. 
+          If the dataset is areal and the parameter is set, the dataset will be resampled to the given resolution.
+          Note: Right now, the aggregations can only write parquet files. For larger (espeically spatio-temporal) datasets, these
+          aggreations can be large. A future version will write netCDF or Zarr for these cases.
       connection:
         type: string
         optional: true
