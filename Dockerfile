@@ -31,7 +31,7 @@ RUN pip install geocube
 RUN pip install metacatalog==0.9.1
 
 # Install CDO, might be used to do seltimestep or sellonlatbox and possibly merge
-RUN apt-get install -y cdo=2.1.1-1 gettext=0.21-12 gnuplot=5.4
+RUN apt-get install -y cdo=2.1.1-1 gettext=0.21-12 gnuplot=5.4.4+dfsg1-2
 
 # create the tool input structure
 RUN mkdir /in
