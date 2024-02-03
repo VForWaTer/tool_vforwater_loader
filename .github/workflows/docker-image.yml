@@ -3,23 +3,6 @@ name: Docker Image CI
 on: push
     
 jobs:
-  release:
-    name: Create Github release
-    runs-on: ubuntu-22.04
-    if: startsWith(github.event.ref, 'refs/tags/v')
-    permissions:
-        contents: write
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-
-      - name: Release
-        uses: softprops/action-gh-release@v1
-        with:
-          body_path: RELEASE.md
-          generate_release_notes: true
-
   build:
     name: Build docker images
     if: startsWith(github.event.ref, 'refs/tags/v')
@@ -58,3 +41,23 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+  release:
+    name: Create Github release
+    runs-on: ubuntu-22.04
+    # only run on tags and if build did not fail
+    if: startsWith(github.event.ref, 'refs/tags/v') && failure() != true
+    permissions:
+        contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          body_path: RELEASE.md
+          generate_release_notes: true
+        
+        
