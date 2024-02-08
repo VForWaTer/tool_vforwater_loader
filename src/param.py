@@ -22,6 +22,7 @@ class Integrations(str, Enum):
     SPATIO_TEMPORAL = 'spatiotemporal'
     ALL = 'all'
     NONE = 'none'
+    FULL = 'full'
 
 
 class NetCDFBackends(str, Enum):
@@ -42,11 +43,12 @@ class Params(BaseModel):
 
     # optional parameter to configure output
     keep_data_files: bool = True
-    database_name: str = 'dataset.db'
+    database_name: str = 'dataset.duckdb'
 
     # optional parameter to provide result output
     precision: str = 'day'
     resolution: int = 5000
+    cell_touches: bool = True
 
     # stuff that we do not change in the tool
     base_path: str = '/out'

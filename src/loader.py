@@ -205,9 +205,11 @@ def _clip_netcdf_xarray(entry: Entry, file_name: str, data: xr.Dataset, params: 
     t1 = time.time()
 
     # extract only the data variable
-    variable_names = entry.datasource.variable_names
-    ds = data[variable_names].copy()
-    logger.info(f"python - ds = data[{variable_names}].copy()")
+    # TODO maybe activate this via a parameter?
+    # variable_names = entry.datasource.variable_names
+    # ds = data[variable_names].copy()
+    # logger.info(f"python - ds = data[{variable_names}].copy()")
+    ds = data
 
     # first go for the lonlatbox clip
     ref = params.reference_area_df
@@ -224,11 +226,11 @@ def _clip_netcdf_xarray(entry: Entry, file_name: str, data: xr.Dataset, params: 
 
     # do the lonlat and then the region clip
     lonlatbox = ds.rio.clip_box(*bounds, crs=4326)
-    region = lonlatbox.rio.clip([ref.geometry[0]], crs=4326)
+    region = lonlatbox.rio.clip([ref.geometry[0]], crs=4326, all_touched=params.cell_touches)
 
     # log out
     logger.info(f"python - lonlatbox df.rio.clip_box(({','.join([str(_) for _ in bounds])}), crs=4326)")
-    logger.info(f"python - region = lonlatbox.rio.clip([ref.geometry[0]], crs=4326)")
+    logger.info(f"python - region = lonlatbox.rio.clip([ref.geometry[0]], crs=4326, all_touched={params.cell_touches})")
 
     # do the time clip
     if time_dim is not None:        
