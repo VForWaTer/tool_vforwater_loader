@@ -27,5 +27,5 @@ Long story short: To run one of the examples, with the `/examples/hyras` compose
 
 ```
 cd examples/hyras
-docker compose run --rm de410890 python run.py
+docker compose run --rm de410890_loader python run.py
 ```
