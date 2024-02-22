@@ -24,8 +24,8 @@ services:
     environment:
       METACATALOG_URI: postgresql://postgres:postgres@db:5432/metacatalog
       DATA_FILE_PATH: /data/raster
-      START_YEAR: 2005
-      END_YEAR: 2015
+      START_YEAR: 1950
+      END_YEAR: 2020
     command: ["python", "/src/pg_init/init.py"]
     volumes:
       - ../../data/raster:/data/raster
