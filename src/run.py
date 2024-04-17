@@ -165,7 +165,7 @@ with PoolExecutor() as executor:
 
     # create a callback to log exceptions
     def callback(future):
-        exc = future.excection() 
+        exc = future.exception() 
         if exc is not None:
             logger.exception(exc)
 
