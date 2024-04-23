@@ -3,7 +3,6 @@ import time
 
 import pandas as pd
 from ydata_profiling import ProfileReport
-from concurrent.futures import ThreadPoolExecutor as PoolExecutor
 
 from param import load_params
 from logger import logger
