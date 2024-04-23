@@ -87,19 +87,20 @@ def load_netcdf_file(entry: Entry, executor: Executor) -> str:
     name = entry.datasource.path
 
     # check if there is a wildcard in the name
+    msg = f"Entry <ID={entry.id}> supplied the raw entry.datasource.path={name}."
     if '*' in name:
         fnames = glob.glob(name)
+        msg += f" Has a wildcard, resolved path to {len(fnames)} files: [{fnames}]."
     else:
         fnames = [name]
+        msg += " Resource is a single file."
     
     # check the amount of files to be processed
-    if len(fnames) > 1:
-        logger.debug(f"For {name} found {len(fnames)} files.")
-    elif len(fnames) == 0:
-        logger.warning(f"Could not find any files for {name}.")
+    if len(fnames) == 0:
+        logger.warning(msg + f" Could not find any files for {name}.")
         return None
     else:
-        logger.debug(f"Resource {name} is single file.")
+        logger.debug(msg)
 
     # get the time axis
     temporal_dims = entry.datasource.temporal_scale.dimension_names if entry.datasource.temporal_scale is not None else []
@@ -163,7 +164,6 @@ def load_netcdf_file(entry: Entry, executor: Executor) -> str:
             entry_metadata_saver(entry, metafile_name)
             logger.info(f"Saved metadata for dataset <ID={entry.id}> to {metafile_name}.")
 
-
     # return the out_path
     return str(dataset_base_path)
 
@@ -194,6 +194,7 @@ def _clip_netcdf_cdo(path: Path, params: Params):
     logger.info(f"took {t2-t1:.2f} seconds")
     
     return str(out_name)
+
 
 def _clip_netcdf_xarray(entry: Entry, file_name: str, data: xr.Dataset, params: Params):
     if data.rio.crs is None:
@@ -255,7 +256,6 @@ def _clip_netcdf_xarray(entry: Entry, file_name: str, data: xr.Dataset, params: 
 
     # return the new dataset
     return region
-
 
 
 def load_raster_file(entry: Entry, name: str, reference_area: dict, base_path: str = '/out') -> rio.DatasetReader:

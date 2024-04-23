@@ -122,12 +122,12 @@ with PoolExecutor() as executor:
     
     # wait until all results are finished
     executor.shutdown(wait=True)
-    logger.debug(f"STOP {type(executor).__name__} - Pool finished all tasks and shutdown.")
+    logger.info(f"STOP {type(executor).__name__} - Pool finished all tasks and shutdown.")
 
 # here to the stuff for creating a consistent dataset
 # check if the user disabled integration
 if params.integration == Integrations.NONE:
-    logger.debug("Integration is disabled. No further processing will be done.")
+    logger.info("Integration is disabled. No further processing will be done.")
 
 # check if we have any files to process
 elif len(file_mapping) > 0:

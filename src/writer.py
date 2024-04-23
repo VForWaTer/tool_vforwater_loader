@@ -39,6 +39,9 @@ def dispatch_save_file(entry: Entry, data: DataFrame | xr.Dataset, executor: Exe
     else:
         target_path = Path(base_path) / target_name
 
+    # log out the target path
+    logger.debug(f"target_path derived for <ID={entry.id}> is: {target_path}")
+
     # define the exception handler
     # TODO exception handler is not the right name anymore
     def exception_handler(future: Future):
@@ -110,6 +113,7 @@ def xarray_to_netcdf_saver(data: xr.Dataset, target_name: str) -> str:
     if Path(target_name).exists():
         logger.debug(f"writer.xarray_to_netcdf_saver: {target_name} already exists. Skipping.")
         return target_name
+    
     t1 = time.time()
     data.to_netcdf(target_name)
     t2 = time.time()
