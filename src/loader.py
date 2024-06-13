@@ -253,92 +253,64 @@ def _clip_netcdf_xarray(entry: Entry, file_name: str, data: xr.Dataset, params: 
     return region
 
 
+def load_raster_file(entry: Entry, executor: Executor) -> str:
+    # load the params
+    params = load_params()
 
-def load_raster_file(entry: Entry, name: str, reference_area: dict, base_path: str = '/out') -> rio.DatasetReader:
-    #DAS hier passt noch nicht zum workflow
-    #Eher alle load Funktionen dispatchen? not sure
-    # build a GeoDataFrame from the reference area
-    df = gpd.GeoDataFrame.from_features([reference_area])
+    # get the reference area
+    reference_area = params.reference_area_df
+
+    # get a path for the current dataset path
+    dataset_base_path = params.dataset_path / f"{entry.variable.name.replace(' ', '_')}_{entry.id}"
+
+    # get the file name from the source
+    source_file_name = entry.datasource.path
+    source_path = Path(source_file_name)
+    
+    # figure out if there is a * in the name, or the name is a directory
+    if '*' in source_file_name:
+        fnames = glob.glob(source_file_name)
+    elif source_path.is_dir():
+        fnames = [str(name) for name in source_path.glob('*') if name.suffix in ('.tif', '.tiff', '.dem')]
+    else:
+        fnames = [source_file_name]
+
+    # go for each file
+    for i, fname in enumerate(fnames):
+        # derive an out-name
+        out_name = None if len(fnames) == 1 else f"{Path(fname).stem}_part_{i + 1}.tif"
+        # submit each save task to the executor
+        executor.submit(_rio_clip_raster, fname, reference_area, dataset_base_path, out_name=out_name)
+    
+    # some logging
+    
+
+def _rio_clip_raster(file_name: str, reference_area: gpd.GeoDataFrame, base_path: Path, out_name: str = None):
+    t1 = time.time()
 
     # open the raster file using rasterio
-    if '*' in name:
-        fnames = glob.glob(name)
+    with rio.open(file_name, 'r') as src:
+        # do the masking
+        out_raster, out_transform = rio.mask.mask(src, [reference_area.geometry.values], crop=True)
+
+        # save the out meta
+        out_meta = src.meta.copy()
+
+    # update the metadata
+    out_meta.update({
+        "height": out_raster.shape[1],
+        "width": out_raster.shape[2],
+        "transform": out_transform
+    })
+
+    # finally save the raster
+    if out_name is None:
+        out_path = base_path / Path(file_name).name
     else:
-        fnames = [name]
+        out_path = base_path / out_name
+
+    with rio.open(str(out_path), 'w', **out_meta) as dst:
+        dst.write(out_raster)
     
-    # check the amount of files to be processed
-    if len(fnames) > 1:
-        logger.debug(f"For {name} found {len(fnames)} files.")
-    elif len(fnames) == 0:
-        logger.warning(f"Could not find any files for {name}.")
-        return None
-    else:
-        logger.debug(f"Resource {name} is single file.")
-
-    # preprocess each file
-    for fname in fnames:
-        t1 = time.time()
-        with rio.open(fname, 'r') as src:
-            # do the mask
-            
-            out_raster, out_transform = rio.mask.mask(src, [df.geometry.values], crop=True)
-
-            # save the masked raster to the output folder
-            out_meta = src.meta.copy()
-        
-        # update the metadata
-        out_meta.update({
-            "height": out_raster.shape[1],
-            "width": out_raster.shape[2],
-            "transform": out_transform
-        })
-
-        # save the raster
-        out_path = Path(base_path) / Path(fname).name
-        with rio.open(str(out_path), 'w', **out_meta) as dst:
-            dst.write(out_raster)
-    
-
-# deprecated
-# we do not merge them anymore            
-def merge_multi_file_netcdf(entry: Entry, path: str, save_nc: bool = True, save_parquet: bool = True) -> pd.DataFrame:
-    # check if this file should be saved
-    if save_nc:
-        out_name = f'/out/{entry.variable.name.replace(" ", "_")}_{entry.id}_lonlatbox.nc'
-    else:
-        out_name = f'{path}/merged_lonlatbox.nc'
-
-    # build the CDO command
-    merge_cmd = ['cdo', 'mergetime', str(Path(path) / '*.nc'), out_name]
-    
-    # run merge command
-    t1 = time.time()
-    subprocess.run(merge_cmd)
     t2 = time.time()
-    logger.info(' '.join(merge_cmd))
-    logger.info(f"took {t2-t1:.2f} seconds")
-
-    # open the merged data
-    # TODO infer time_axis from the entry and figure out a useful time_axis chunk size here
-    data = xr.open_dataset(out_name, decode_coords=True, mask_and_scale=True, chunks={'time': 1})
-
-    if not save_parquet:
-        return data
-    
-    # TODO: put this into an extra STEP
-    # TODO: figure out axis_names from the entry here THIS IS NOT REALLY USEFULL
-    time_axis = next(([_] for _ in ('tstamp', 'time', 'date', 'datetime') if _ in data.coords), [])
-    x_axis = next(([_] for _ in ('lon', 'longitude',  'x') if _ in data.coords), [])
-    y_axis = next(([_] for _ in ('lat', 'latitude', 'y') if _ in data.coords), [])
-    var_name = [_ for _ in ('pr', 'hurs', 'tas', 'rsds', 'tasmin', 'tasmax') if _ in data.data_vars]
-    variable_names = [*time_axis, *x_axis, *y_axis, *var_name]
-
-    # convert to long format
-    t1 = time.time()
-    df = data[var_name].to_dask_dataframe()[variable_names]
-    t2 = time.time()
-    logger.debug(f"Converting {out_name} to long format in {t2-t1:.2f} seconds.")
-
-    return df
-
-
+    logger.info(f"Clipped {file_name} to {out_path} in {t2-t1:.2f} seconds.")
