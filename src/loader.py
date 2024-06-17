@@ -70,7 +70,7 @@ def load_file_source(entry: Entry, executor: Executor) -> str:
         # return the dataset
         return out_path
     elif path.suffix.lower() in ('.tif', '.tiff', '.dem'):
-        raise NotImplementedError('GeoTiff loader is currently not implemented, sorry.')
+        out_path = load_raster_file(entry, executor=executor)
 
 
 def load_netcdf_file(entry: Entry, executor: Executor) -> str:
@@ -283,6 +283,7 @@ def load_raster_file(entry: Entry, executor: Executor) -> str:
         executor.submit(_rio_clip_raster, fname, reference_area, dataset_base_path, out_name=out_name)
     
     # some logging
+    return str(dataset_base_path)
     
 
 def _rio_clip_raster(file_name: str, reference_area: gpd.GeoDataFrame, base_path: Path, out_name: str = None):
