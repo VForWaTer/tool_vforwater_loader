@@ -64,13 +64,17 @@ def load_file_source(entry: Entry, executor: Executor) -> str:
 
     # go for the different suffixes
     if path.suffix.lower() in ('.nc', '.netcdf', '.cdf', 'nc4'):
+        logger.info("load_file_source identified a netCDF file and will now process it.")
         # laod the netCDF file time & space chunks to the output folder
         out_path = load_netcdf_file(entry, executor=executor)
         
         # return the dataset
         return out_path
     elif path.suffix.lower() in ('.tif', '.tiff', '.dem'):
+        logger.info("load_file_source identified a raster file and will now process it.")
         out_path = load_raster_file(entry, executor=executor)
+    else:
+        logger.warning(f"Loading a file source was requested, but the passed file extension '{path.suffix.lower()}' is not recognized.")
 
 
 def load_netcdf_file(entry: Entry, executor: Executor) -> str:
@@ -163,6 +167,7 @@ def load_netcdf_file(entry: Entry, executor: Executor) -> str:
     # return the out_path
     return str(dataset_base_path)
 
+
 def _clip_netcdf_cdo(path: Path, params: Params):
     # get the output name
     out_name = params.intermediate_path / path.name
@@ -190,6 +195,7 @@ def _clip_netcdf_cdo(path: Path, params: Params):
     logger.info(f"took {t2-t1:.2f} seconds")
     
     return str(out_name)
+
 
 def _clip_netcdf_xarray(entry: Entry, file_name: str, data: xr.Dataset, params: Params):
     if data.rio.crs is None:
@@ -263,46 +269,75 @@ def load_raster_file(entry: Entry, executor: Executor) -> str:
     # get a path for the current dataset path
     dataset_base_path = params.dataset_path / f"{entry.variable.name.replace(' ', '_')}_{entry.id}"
 
+    # create the base path
+    dataset_base_path.mkdir(parents=True, exist_ok=True)
+
     # get the file name from the source
     source_file_name = entry.datasource.path
     source_path = Path(source_file_name)
     
     # figure out if there is a * in the name, or the name is a directory
     if '*' in source_file_name:
-        fnames = glob.glob(source_file_name)
+        names = glob.glob(source_file_name)
     elif source_path.is_dir():
-        fnames = [str(name) for name in source_path.glob('*') if name.suffix in ('.tif', '.tiff', '.dem')]
+        names = [str(name) for name in source_path.glob('*')]
     else:
-        fnames = [source_file_name]
+        names = [source_file_name]
+    
+    # filter
+    fnames = [name for name in names if Path(name).suffix.lower() in ('.tif', '.tiff', '.dem')]
+    
+    # info
+    logger.info(f"Exploded the final list of raster tiles to : [{fnames}]")
 
+    # define an error handler
+    def error_handler(future):
+        exc = future.exception()
+        if exc is not None:
+            logger.error(f"ERRORED: clipping dataset <ID={entry.id}>: {str(exc)}")
+    
     # go for each file
     for i, fname in enumerate(fnames):
         # derive an out-name
         out_name = None if len(fnames) == 1 else f"{Path(fname).stem}_part_{i + 1}.tif"
         # submit each save task to the executor
-        executor.submit(_rio_clip_raster, fname, reference_area, dataset_base_path, out_name=out_name)
+        future = executor.submit(_rio_clip_raster, fname, reference_area, dataset_base_path, out_name=out_name, touched=params.cell_touches)
+        future.add_done_callback(error_handler)
     
+    # save the metadata
+    metafile_name = str(params.dataset_path / f"{entry.variable.name.replace(' ', '_')}_{entry.id}.metadata.json")
+    entry_metadata_saver(entry, metafile_name)
+    logger.info(f"Saved metadata for dataset <ID={entry.id}> to {metafile_name}.")
+
     # some logging
     return str(dataset_base_path)
     
 
-def _rio_clip_raster(file_name: str, reference_area: gpd.GeoDataFrame, base_path: Path, out_name: str = None):
+def _rio_clip_raster(file_name: str, reference_area: gpd.GeoDataFrame, base_path: Path, out_name: str = None, touched: bool = False):
     t1 = time.time()
 
     # open the raster file using rasterio
     with rio.open(file_name, 'r') as src:
         # do the masking
-        out_raster, out_transform = rio.mask.mask(src, [reference_area.geometry.values], crop=True)
+        try:
+            out_raster, out_transform = rio.mask.mask(src, reference_area.geometry, crop=True, all_touched=touched, nodata=src.nodata)
+        except ValueError as e:
+            if 'Input shapes do not overlap raster' in str(e):
+                logger.info(f"Skipping {file_name} as it does not overlap with the reference area.")
+                return
+            else:
+                logger.exception(f"An unexpected error occured: {str(e)}")
 
         # save the out meta
         out_meta = src.meta.copy()
 
-    # update the metadata
-    out_meta.update({
-        "height": out_raster.shape[1],
-        "width": out_raster.shape[2],
-        "transform": out_transform
-    })
+        # update the metadata
+        out_meta.update({
+            "height": out_raster.shape[1],
+            "width": out_raster.shape[2],
+            "transform": out_transform,
+            "nodata": src.nodata
+        })
 
     # finally save the raster
     if out_name is None:
