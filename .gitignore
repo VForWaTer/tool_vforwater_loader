@@ -132,8 +132,8 @@ dmypy.json
 out
 data/*
 .DS_Store
+examples/*/**/in
+examples/*/**/out
 examples/hyras/scripts
-examples/hyras/**/in
-examples/hyras/**/out
 examples/*/init/*ipynb
 .vscode
