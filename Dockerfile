@@ -15,7 +15,7 @@ RUN mkdir /whitebox && \
     unzip WhiteboxTools_linux_amd64.zip
 
 # install dependecies for this tool
-RUN pip install ipython ==8.26.0 \ 
+RUN pip install ipython==8.26.0 \ 
                 "pandas<2.2.0" \
                 geopandas==0.14.2 \
                 python-dotenv==1.0.0 \
@@ -26,7 +26,7 @@ RUN pip install ipython ==8.26.0 \
                 # linux AArch64 extensions are not available for 0.9.2 -> 0.10.0 is released early Feb. 2024
                 duckdb==0.8.0 \
                 polars==0.19.19 \
-                geocube==0.6.0 
+                geocube
 
 # install the needed version for metacatalog
 RUN pip install metacatalog==0.9.1

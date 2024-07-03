@@ -96,7 +96,7 @@ if params.integration == Integrations.NONE and not params.keep_data_files:
 tool_start = time.time()
 
 # debug the params before we do anything with them
-logger.debug(f"JSON dump of parameters received: {params.model_dump_json()}")
+#logger.debug(f"JSON dump of parameters received: {params.model_dump_json()}")
 
 # save the reference area to a file for later reuse
 if params.reference_area is not None:
@@ -117,7 +117,7 @@ with PoolExecutor() as executor:
             # save the mapping from entry to data_path
             file_mapping.append({'entry': entry, 'data_path': data_path})
         except Exception as e:
-            logger.exception(f"ERRORED on dataset <ID={dataset_id}>")
+            logger.exception(f"ERRORED on dataset <ID={dataset_id}>.\nError: {str(e)}")
             continue
     
     # wait until all results are finished
