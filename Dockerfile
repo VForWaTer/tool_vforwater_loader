@@ -15,17 +15,18 @@ RUN mkdir /whitebox && \
     unzip WhiteboxTools_linux_amd64.zip
 
 # install dependecies for this tool
-RUN pip install "pandas<2.2.0"
-RUN pip install geopandas==0.14.2
-RUN pip install python-dotenv==1.0.0
-RUN pip install xarray[complete]==2023.6.0
-RUN pip install rioxarray==0.15.0
-RUN pip install pyarrow==14.0.1
-RUN pip install ydata-profiling==4.6.4
-# linux AArch64 extensions are not available for 0.9.2 -> 0.10.0 is released early Feb. 2024
-RUN pip install duckdb==0.8.0
-RUN pip install polars==0.19.19
-RUN pip install geocube
+RUN pip install ipython ==8.26.0 \ 
+                "pandas<2.2.0" \
+                geopandas==0.14.2 \
+                python-dotenv==1.0.0 \
+                xarray[complete]==2023.6.0 \ 
+                rioxarray==0.15.0 \
+                pyarrow==14.0.1 \
+                ydata-profiling==4.6.4 \
+                # linux AArch64 extensions are not available for 0.9.2 -> 0.10.0 is released early Feb. 2024
+                duckdb==0.8.0 \
+                polars==0.19.19 \
+                geocube==0.6.0 
 
 # install the needed version for metacatalog
 RUN pip install metacatalog==0.9.1
@@ -41,7 +42,7 @@ COPY ./in /in
 RUN mkdir /out
 RUN mkdir /src
 COPY ./src /src
-RUN mv /whitebox/*/WBT /src/WBT
+RUN mv /whitebox/WhiteboxTools_linux_amd64/WBT /src/WBT
 
 # download a precompiled binary of duckdb
 #  first line checks the architecture, and replaces x86_64 with amd64, which is what duckdb uses
