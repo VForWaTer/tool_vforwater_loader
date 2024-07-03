@@ -14,8 +14,9 @@ import rasterio as rio
 from logger import logger
 from writer import dispatch_save_file, entry_metadata_saver
 from param import load_params, Params
+from utils import whitebox_log_handler
 
-
+from WBT.whitebox_tools import WhiteboxTools
 
 # Maybe this function becomes part of metacatalog core or a metacatalog extension
 def load_entry_data(entry: Entry, executor: Executor) -> str:
@@ -297,6 +298,8 @@ def load_raster_file(entry: Entry, executor: Executor) -> str:
         if exc is not None:
             logger.error(f"ERRORED: clipping dataset <ID={entry.id}>: {str(exc)}")
     
+    # collect all futures
+    futures = []
     # go for each file
     for i, fname in enumerate(fnames):
         # derive an out-name
@@ -304,7 +307,18 @@ def load_raster_file(entry: Entry, executor: Executor) -> str:
         # submit each save task to the executor
         future = executor.submit(_rio_clip_raster, fname, reference_area, dataset_base_path, out_name=out_name, touched=params.cell_touches)
         future.add_done_callback(error_handler)
+        futures.append(future)
     
+    # wait until all are finished
+    tiles = [future.result() for future in futures if future.result() is not None]
+    
+    # run the merge function and delete the other files
+    _wbt_merge_raster(dataset_base_path, f"{entry.variable.name.replace(' ', '_')}_{entry.id}.tif")
+
+    # remove the tiles
+    for tile in tiles:
+        Path(tile).unlink()
+
     # save the metadata
     metafile_name = str(params.dataset_path / f"{entry.variable.name.replace(' ', '_')}_{entry.id}.metadata.json")
     entry_metadata_saver(entry, metafile_name)
@@ -324,7 +338,7 @@ def _rio_clip_raster(file_name: str, reference_area: gpd.GeoDataFrame, base_path
             out_raster, out_transform = rio.mask.mask(src, reference_area.geometry, crop=True, all_touched=touched, nodata=src.nodata)
         except ValueError as e:
             if 'Input shapes do not overlap raster' in str(e):
-                logger.info(f"Skipping {file_name} as it does not overlap with the reference area.")
+                logger.debug(f"Skipping {file_name} as it does not overlap with the reference area.")
                 return
             else:
                 logger.exception(f"An unexpected error occured: {str(e)}")
@@ -351,3 +365,21 @@ def _rio_clip_raster(file_name: str, reference_area: gpd.GeoDataFrame, base_path
     
     t2 = time.time()
     logger.info(f"Clipped {file_name} to {out_path} in {t2-t1:.2f} seconds.")
+
+    # return the output path
+    return str(out_path)
+
+def _wbt_merge_raster(input_folder: Path, out_name: str):
+    # initialize the whitebox tools
+    wbt = WhiteboxTools()
+    wbt.set_verbose_mode(True)
+
+    # this could be mirrored in the params
+    wbt.set_compress_rasters(True)
+
+    # set whitebox path to the newly created folder
+    wbt.set_working_dir(str(input_folder))
+
+    # run the mosaic tool on the raster source
+    wbt.mosaic(output=out_name, method="nn", callback=whitebox_log_handler)
+    
