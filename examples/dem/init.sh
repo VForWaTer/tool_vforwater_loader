@@ -6,4 +6,5 @@
 # install papermill and jupyter to run the examples
 pip install papermill jupyter
 
-echo "This is the DEM init tool"
+# run the dem example notebook
+papermill /tool_init/init/upload_dem.ipynb /tool_init/init/$(date +%F)_upload_dem.ipynb -p DATA_DIR "${DATA_FILE_PATH}/DEM/*.tif" -p CONNECTION $METACATALOG_URI

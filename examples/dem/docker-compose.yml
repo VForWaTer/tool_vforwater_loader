@@ -26,22 +26,22 @@ services:
       DATA_FILE_PATH: /data/raster
     command: ["python", "/src/pg_init/init.py"]
     volumes:
-      - ../../data:/data/raster
+      - ../../data/raster:/data/raster
       - ../../examples/dem:/tool_init
     
-  # loader:
-  #   build:
-  #     context: ../../
-  #     dockerfile: Dockerfile
-  #   links:
-  #     - db
-  #   environment:
-  #     METACATALOG_URI: postgresql://postgres:postgres@db:5432/metacatalog
-  #   command: ["echo", "run the tool like 'docker compose run --rm loader python run.py'"]
-  #   volumes:
-  #     - ../../in:/in
-  #     - ../../out:/out
-  #     - ./data:/data/raster
+  loader:
+    build:
+      context: ../../
+      dockerfile: Dockerfile
+    links:
+      - db
+    environment:
+      METACATALOG_URI: postgresql://postgres:postgres@db:5432/metacatalog
+    command: ["echo", "run the tool like 'docker compose run --rm loader python run.py'"]
+    volumes:
+      - ../../in:/in
+      - ../../out:/out
+      - ./data:/data/raster
 
 # RIGHT NOW I CAN'T THINK OF A BETTER WAY TO DO THIS.
 # IDEALLY, WE SHOULD HAVE tool_runner WORKING, WHICH BUILDS THE loader and handles the
