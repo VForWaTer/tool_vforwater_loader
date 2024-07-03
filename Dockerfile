@@ -16,7 +16,7 @@ RUN mkdir /whitebox && \
 
 # install dependecies for this tool
 RUN pip install ipython==8.26.0 \ 
-                "pandas<2.2.0" \
+                "pandas<=2.0.0" \
                 geopandas==0.14.2 \
                 python-dotenv==1.0.0 \
                 xarray[complete]==2023.6.0 \ 
