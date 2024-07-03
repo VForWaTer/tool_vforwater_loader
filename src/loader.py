@@ -290,7 +290,7 @@ def load_raster_file(entry: Entry, executor: Executor) -> str:
     fnames = [name for name in names if Path(name).suffix.lower() in ('.tif', '.tiff', '.dem')]
     
     # info
-    logger.info(f"Exploded the final list of raster tiles to : [{fnames}]")
+    logger.info(f"Exploded the final list of raster tiles to : {fnames}")
 
     # define an error handler
     def error_handler(future):
@@ -344,9 +344,13 @@ def _rio_clip_raster(file_name: str, reference_area: gpd.GeoDataFrame, base_path
 
     # open the raster file using rasterio
     with rio.open(file_name, 'r') as src:
+        # figure out a nodata value
+        nodata = src.nodata
+        if nodata is None:
+            nodata = -9999
         # do the masking
         try:
-            out_raster, out_transform = rio.mask.mask(src, reference_area.geometry, crop=True, all_touched=touched, nodata=src.nodata)
+            out_raster, out_transform = rio.mask.mask(src, reference_area.geometry, crop=True, all_touched=touched, nodata=nodata)
         except ValueError as e:
             if 'Input shapes do not overlap raster' in str(e):
                 logger.debug(f"Skipping {file_name} as it does not overlap with the reference area.")
@@ -362,7 +366,7 @@ def _rio_clip_raster(file_name: str, reference_area: gpd.GeoDataFrame, base_path
             "height": out_raster.shape[1],
             "width": out_raster.shape[2],
             "transform": out_transform,
-            "nodata": src.nodata
+            "nodata": nodata
         })
 
     # finally save the raster
