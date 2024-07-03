@@ -90,8 +90,8 @@ def _create_datasource_table(entry: Entry, table_name: str, use_spatial: bool = 
     params = load_params()
 
     # get the dimension names
-    spatial_dims = entry.datasource.spatial_scale.dimension_names
-    temporal_dims = entry.datasource.temporal_scale.dimension_names
+    spatial_dims = entry.datasource.spatial_scale.dimension_names if entry.datasource.spatial_scale is not None else []
+    temporal_dims = entry.datasource.temporal_scale.dimension_names if entry.datasource.temporal_scale is not None else []
     variable_dims = entry.datasource.variable_names
     
     # container for the coulumn names
@@ -131,8 +131,8 @@ def _create_insert_sql(entry: Entry, table_name: str, source_name: str = 'df', u
         raise NotImplementedError('There is still an error with the spatial type.')
 
     # get the dimension names
-    spatial_dims = entry.datasource.spatial_scale.dimension_names
-    temporal_dims = entry.datasource.temporal_scale.dimension_names
+    spatial_dims = entry.datasource.spatial_scale.dimension_names if entry.datasource.spatial_scale is not None else []
+    temporal_dims = entry.datasource.temporal_scale.dimension_names if entry.datasource.temporal_scale is not None else []
     variable_dims = entry.datasource.variable_names
 
     # build the SQL
@@ -236,7 +236,8 @@ def _switch_source_loader(entry: Entry, file_name: str) -> str:
     elif suf == 'csv':
         raise NotImplementedError('CSV file import are currently not supported.')
     elif suf in ('.tif', '.tiff', '.geotiff'):
-        raise NotImplementedError('GeoTIFF file import are currently not supported.')
+        ds = xr.open_dataset(file_name, mask_and_scale=True, chunks='auto')
+        return load_xarray_to_duckdb(entry, ds)
     else:
         raise RuntimeError(f"Unknown file type <{suf}> for file <{file_name}>.")
     
