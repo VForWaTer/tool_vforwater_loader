@@ -62,3 +62,18 @@ services:
       - ./DE210080/out:/out
       - ../../data/raster:/data/raster
 #      - ../../src:/src
+
+  open_field:
+    build:
+      context: ../../
+      dockerfile: Dockerfile
+    links:
+      - db
+    environment:
+      METACATALOG_URI: postgresql://postgres:postgres@db:5432/metacatalog
+    command: ["echo", "run the tool like 'docker compose run --rm open_filed python run.py'"]
+    volumes:
+      - ./OpenField/in:/in
+      - ./OpenField/out:/out
+      - ../../data/raster:/data/raster
+#      - ../../src:/src
