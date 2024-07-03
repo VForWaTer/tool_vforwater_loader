@@ -11,7 +11,6 @@ import pandas as pd
 import geopandas as gpd
 import rasterio as rio
 
-
 from logger import logger
 from writer import dispatch_save_file, entry_metadata_saver
 from param import load_params, Params
@@ -62,10 +61,14 @@ def load_file_source(entry: Entry, executor: Executor) -> str:
     name = entry.datasource.path
     path = Path(name)
 
+    # debug the path
+    logger.debug(f"Metacatalog entry datasource path: {path}; exists: {path.exists()}")
+
     # go for the different suffixes
+
     if path.suffix.lower() in ('.nc', '.netcdf', '.cdf', 'nc4'):
         logger.info("load_file_source identified a netCDF file and will now process it.")
-        # laod the netCDF file time & space chunks to the output folder
+        # load the netCDF file time & space chunks to the output folder
         out_path = load_netcdf_file(entry, executor=executor)
         
         # return the dataset
@@ -85,19 +88,20 @@ def load_netcdf_file(entry: Entry, executor: Executor) -> str:
     name = entry.datasource.path
 
     # check if there is a wildcard in the name
+    msg = f"Entry <ID={entry.id}> supplied the raw entry.datasource.path={name}."
     if '*' in name:
         fnames = glob.glob(name)
+        msg += f" Has a wildcard, resolved path to {len(fnames)} files: [{fnames}]."
     else:
         fnames = [name]
+        msg += " Resource is a single file."
     
     # check the amount of files to be processed
-    if len(fnames) > 1:
-        logger.debug(f"For {name} found {len(fnames)} files.")
-    elif len(fnames) == 0:
-        logger.warning(f"Could not find any files for {name}.")
+    if len(fnames) == 0:
+        logger.warning(msg + f" Could not find any files for {name}.")
         return None
     else:
-        logger.debug(f"Resource {name} is single file.")
+        logger.debug(msg)
 
     # get the time axis
     temporal_dims = entry.datasource.temporal_scale.dimension_names if entry.datasource.temporal_scale is not None else []
@@ -128,17 +132,15 @@ def load_netcdf_file(entry: Entry, executor: Executor) -> str:
             ds.close()
             logger.warning(f"The dataset {fname} does not contain a datetime coordinate.")
         
-        # 
+        # this does not work for ie HYRAS netCDF files
         if params.netcdf_backend == 'cdo':
             ds.close()
             path = _clip_netcdf_cdo(fname, params)
-
-            #TODO to the mergetime here
-            pass
-
             return path
+        
         elif params.netcdf_backend == 'xarray':
             data = _clip_netcdf_xarray(entry, fname, ds, params)
+
         elif params.netcdf_backend == 'parquet':
             # use the xarray clip first
             ds = _clip_netcdf_xarray(entry, fname, ds, params)
@@ -162,7 +164,6 @@ def load_netcdf_file(entry: Entry, executor: Executor) -> str:
             metafile_name = str(params.dataset_path / f"{filename}.metadata.json")
             entry_metadata_saver(entry, metafile_name)
             logger.info(f"Saved metadata for dataset <ID={entry.id}> to {metafile_name}.")
-
 
     # return the out_path
     return str(dataset_base_path)

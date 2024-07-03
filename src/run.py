@@ -95,6 +95,9 @@ if params.integration == Integrations.NONE and not params.keep_data_files:
 # Here is the actual tool
 tool_start = time.time()
 
+# debug the params before we do anything with them
+logger.debug(f"JSON dump of parameters received: {params.model_dump_json()}")
+
 # save the reference area to a file for later reuse
 if params.reference_area is not None:
     reference_area = reference_area_to_file()
@@ -119,12 +122,12 @@ with PoolExecutor() as executor:
     
     # wait until all results are finished
     executor.shutdown(wait=True)
-    logger.debug(f"STOP {type(executor).__name__} - Pool finished all tasks and shutdown.")
+    logger.info(f"STOP {type(executor).__name__} - Pool finished all tasks and shutdown.")
 
 # here to the stuff for creating a consistent dataset
 # check if the user disabled integration
 if params.integration == Integrations.NONE:
-    logger.debug("Integration is disabled. No further processing will be done.")
+    logger.info("Integration is disabled. No further processing will be done.")
 
 # check if we have any files to process
 elif len(file_mapping) > 0:
@@ -139,29 +142,30 @@ else:
     logger.warning("It seems like no data files have been processed. This might be an error.")
 
 # switch the type of integrations
-with PoolExecutor() as executor:
-    logger.debug(f"START {type(executor).__name__} - Pool to ingest data files into a Dataset DuckDB database.")
+if params.integration != Integrations.NONE:
+    with PoolExecutor() as executor:
+        logger.debug(f"START {type(executor).__name__} - Pool to ingest data files into a Dataset DuckDB database.")
 
-    if params.integration == Integrations.TEMPORAL or params.integration == Integrations.ALL:
-        # run the temporal aggregation
-        aggregator.aggregate_scale(aggregation_scale='temporal', executor=executor)
-    
-    if params.integration == Integrations.SPATIAL or params.integration == Integrations.ALL:
-        # run the spatial aggregation
-        aggregator.aggregate_scale(aggregation_scale='spatial', executor=executor)
-    
-    if params.integration == Integrations.SPATIO_TEMPORAL or params.integration == Integrations.ALL:
-        # run the spatio-temporal aggregation
-        aggregator.aggregate_scale(aggregation_scale='spatiotemporal', executor=executor)
+        if params.integration == Integrations.TEMPORAL or params.integration == Integrations.ALL:
+            # run the temporal aggregation
+            aggregator.aggregate_scale(aggregation_scale='temporal', executor=executor)
+        
+        if params.integration == Integrations.SPATIAL or params.integration == Integrations.ALL:
+            # run the spatial aggregation
+            aggregator.aggregate_scale(aggregation_scale='spatial', executor=executor)
+        
+        if params.integration == Integrations.SPATIO_TEMPORAL or params.integration == Integrations.ALL:
+            # run the spatio-temporal aggregation
+            aggregator.aggregate_scale(aggregation_scale='spatiotemporal', executor=executor)
 
-    # wait until all results are finished
-    executor.shutdown(wait=True)
-    logger.debug(f"STOP {type(executor).__name__} - Pool finished all tasks and shutdown.")
+        # wait until all results are finished
+        executor.shutdown(wait=True)
+        logger.debug(f"STOP {type(executor).__name__} - Pool finished all tasks and shutdown.")
 
 
-# finally run a thrid pool to generate reports
-with PoolExecutor() as executor:
-    logger.debug(f"START {type(executor).__name__} - Pool to generate final reports.")
+    # finally run a thrid pool to generate reports
+    with PoolExecutor() as executor:
+        logger.debug(f"START {type(executor).__name__} - Pool to generate final reports.")
 
     # create a callback to log exceptions
     def callback(future):
@@ -169,23 +173,23 @@ with PoolExecutor() as executor:
         if exc is not None:
             logger.exception(exc)
 
-    # generate the profile report - start first as this one might potentially take longer
-    # TODO: there should be an option to disable this
-    executor.submit(reporter.generate_profile_report).add_done_callback(callback)
+        # generate the profile report - start first as this one might potentially take longer
+        # TODO: there should be an option to disable this
+        executor.submit(reporter.generate_profile_report).add_done_callback(callback)
 
-    # generate the readme
-    executor.submit(reporter.generate_readme).add_done_callback(callback)
+        # generate the readme
+        executor.submit(reporter.generate_readme).add_done_callback(callback)
 
 
-    # wait until all results are finished
-    executor.shutdown(wait=True)
-    logger.debug(f"STOP {type(executor).__name__} - Pool finished all tasks and shutdown.")
+        # wait until all results are finished
+        executor.shutdown(wait=True)
+        logger.debug(f"STOP {type(executor).__name__} - Pool finished all tasks and shutdown.")
 # --------------------------------------------------------------------------- #
 
 
 # we're finished.
 t2 = time.time()
-logger.info(f"Total runtime: {t2-tool_start:.2f} seconds.")
+logger.info(f"Total runtime: {t2 - tool_start:.2f} seconds.")
 
 # print out the report
 with open('/out/processing.log', 'r') as f:

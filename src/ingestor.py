@@ -129,9 +129,6 @@ def _create_datasource_table(entry: Entry, table_name: str, use_spatial: bool = 
 def _create_insert_sql(entry: Entry, table_name: str, source_name: str = 'df', use_spatial: bool = False) -> str:
     if use_spatial:
         raise NotImplementedError('There is still an error with the spatial type.')
-    
-    # get the parameters
-    params = load_params()
 
     # get the dimension names
     spatial_dims = entry.datasource.spatial_scale.dimension_names
@@ -186,8 +183,9 @@ def load_files(file_mapping: List[FileMapping]) -> str:
             try:
                 table_name = _switch_source_loader(entry, fname)
                 table_names.append(table_name)
-            except:
+            except Exception as e:
                 logger.exception(f"ERRORED on loading file <{fname}>")
+                logger.error(str(e))
                 continue
         
         # get a set of all involved table names
@@ -200,6 +198,7 @@ def load_files(file_mapping: List[FileMapping]) -> str:
                 add_temporal_integration(entry=entry, table_name=table_name, funcs=None)
             except Exception as e:
                 logger.exception(f"ERRORED on adding temporal integration for table <{table_name}>")
+                logger.error(str(e))
             
             # spatial aggregation
             try:
@@ -207,6 +206,7 @@ def load_files(file_mapping: List[FileMapping]) -> str:
                 add_spatial_integration(entry=entry, table_name=table_name, funcs=None, target_epsg=3857, algin_cell='center')
             except Exception as e:
                 logger.exception(f"ERRORED on adding spatial integration for table <{table_name}>")
+                logger.error(str(e))
             
             # spatio-temporal aggregation
             try:
@@ -214,6 +214,7 @@ def load_files(file_mapping: List[FileMapping]) -> str:
                 add_spatial_integration(entry=entry, table_name=table_name, spatio_temporal=True, funcs=None, target_epsg=3857, algin_cell='center')
             except Exception as e:
                 logger.exception(f"ERRORED on adding spatio-temporal integration for table <{table_name}>")
+                logger.error(str(e))
         
     # now load all metadata that we can find on the dataset folder level
     load_metadata_to_duckdb()
@@ -247,12 +248,25 @@ def load_xarray_to_duckdb(entry: Entry, data: xr.Dataset) -> str:
     # get the dimension names and spatial dimensions
     dimension_names = entry.datasource.dimension_names
 
+    # log out the dimension names
+    logger.debug(f"Dimension names for <ID={entry.id}>: {dimension_names}")
+
     # we assume that the source uses chunking, hence convert to dask dataframe
     logger.info(f"Loading preprocessed source <ID={entry.id}> to duckdb database <{params.database_path}> for data integration...")
     t1 = time.time()
     
     # get a delayed dask dataframe
-    ddf = data.to_dask_dataframe()[dimension_names]
+    try:
+        ddf = data.to_dask_dataframe()[dimension_names]
+    except ValueError as e:
+        # check this is the chunking error
+        if 'Object has inconsistent chunks' in str(e):
+            logger.warning(f"Xarray had problems reading chunks from the clip of <ID={entry.id}>. Trying to rechunk the data...")
+            unified = data.unify_chunks()
+            ddf = unified.to_dask_dataframe()[dimension_names]
+        else:
+            # in any other case re-raise the error
+            raise e
 
     # create the table name
     table_name = f"{entry.variable.name.replace(' ', '_')}_{entry.id}"
