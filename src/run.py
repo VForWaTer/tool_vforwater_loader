@@ -114,6 +114,11 @@ with PoolExecutor() as executor:
             # load the entry and return the data path
             data_path = load_entry_data(entry, executor)
 
+            # if data_path is None, we skip this step
+            if data_path is None:
+                logger.error(f"Could not load data for dataset <ID={dataset_id}>. The content of '/out/datasets' might miss something.")
+                continue
+
             # save the mapping from entry to data_path
             file_mapping.append({'entry': entry, 'data_path': data_path})
         except Exception as e:

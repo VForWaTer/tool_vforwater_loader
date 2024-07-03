@@ -72,13 +72,15 @@ def load_file_source(entry: Entry, executor: Executor) -> str:
         # load the netCDF file time & space chunks to the output folder
         out_path = load_netcdf_file(entry, executor=executor)
         
-        # return the dataset
-        return out_path
     elif path.suffix.lower() in ('.tif', '.tiff', '.dem'):
         logger.info("load_file_source identified a raster file and will now process it.")
         out_path = load_raster_file(entry, executor=executor)
     else:
         logger.warning(f"Loading a file source was requested, but the passed file extension '{path.suffix.lower()}' is not recognized.")
+        return None
+
+    # return the dataset path
+    return out_path
 
 
 def load_netcdf_file(entry: Entry, executor: Executor) -> str:

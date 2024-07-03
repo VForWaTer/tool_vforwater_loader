@@ -32,7 +32,7 @@ tools:
         values:
           - none
           - all
-          - sptatial
+          - spatial
           - temporal
         description: |
           The mode of operation for the integration of each all data files associated to each data source
