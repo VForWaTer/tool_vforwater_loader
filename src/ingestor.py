@@ -83,9 +83,7 @@ def _table_exists(table_name: str) -> bool:
         return False
 
 
-def _create_datasource_table(entry: Entry, table_name: str, use_spatial: bool = False) -> str:
-    if use_spatial:
-        raise NotImplementedError('There is still an error with the spatial type.')
+def _create_datasource_table(entry: Entry, table_name: str) -> str:
     # get the parameters
     params = load_params()
 
@@ -102,7 +100,7 @@ def _create_datasource_table(entry: Entry, table_name: str, use_spatial: bool = 
        column_names.append(f" time TIMESTAMP")
     
     # spatial dimensions
-    if len(spatial_dims) == 2 and use_spatial:
+    if len(spatial_dims) == 2 and params.use_spatial:
         column_names.append(f" cell BOX_2D")
     else:
         column_names.append(' ' + ','.join([f" {name} DOUBLE" for dim, name in zip(spatial_dims, SPATIAL_DIMENSIONS)]))
@@ -126,9 +124,8 @@ def _create_datasource_table(entry: Entry, table_name: str, use_spatial: bool = 
     return dbname
 
 
-def _create_insert_sql(entry: Entry, table_name: str, source_name: str = 'df', use_spatial: bool = False) -> str:
-    if use_spatial:
-        raise NotImplementedError('There is still an error with the spatial type.')
+def _create_insert_sql(entry: Entry, table_name: str, source_name: str = 'df') -> str:
+    params = load_params()
 
     # get the dimension names
     spatial_dims = entry.datasource.spatial_scale.dimension_names if entry.datasource.spatial_scale is not None else []
@@ -146,7 +143,7 @@ def _create_insert_sql(entry: Entry, table_name: str, source_name: str = 'df', u
         column_names.append(f" {temporal_dims[0]} as time ")
 
     # spatial dimensions
-    if len(spatial_dims) == 2 and use_spatial:
+    if len(spatial_dims) == 2 and params.use_spatial:
        column_names.append(f" ({','.join(spatial_dims)})::BOX_2D AS cell ")
     else:
         column_names.append(' ' + ', '.join([f"{dim} AS {name}" for dim, name in zip(spatial_dims, SPATIAL_DIMENSIONS)]))
