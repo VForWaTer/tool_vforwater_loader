@@ -1,5 +1,6 @@
 import os
 import sys
+import platform
 from datetime import datetime as dt
 import time
 from pathlib import Path
@@ -17,6 +18,7 @@ import ingestor
 import aggregator
 import reporter
 from clip import reference_area_to_file
+from version import __version__
 
 # parse parameters
 kwargs = get_parameter()
@@ -60,6 +62,8 @@ session = api.connect_database(connection)
 MSG = f"""\
 This is the V-FOR-WaTer data loader report
 
+The loader version is: {__version__} (Python: {platform.python_version()})
+Running on: {platform.platform()}
 The following information has been submitted to the tool:
 
 START DATE:         {params.start_date}
