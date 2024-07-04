@@ -1,7 +1,6 @@
 # Copernicus DEM example
 
-This example incldues a installer service that loads an example Copernicus 30m-DEM for Baden-Württemberg
-to metacatalog.
+This example incldues a installer service that loads an example Copernicus 30m-DEM for Baden-Württemberg to metacatalog.
 
 To install the example, run:
 
