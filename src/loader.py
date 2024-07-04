@@ -14,8 +14,9 @@ import rasterio as rio
 from logger import logger
 from writer import dispatch_save_file, entry_metadata_saver
 from param import load_params, Params
+from utils import whitebox_log_handler
 
-
+from WBT.whitebox_tools import WhiteboxTools
 
 # Maybe this function becomes part of metacatalog core or a metacatalog extension
 def load_entry_data(entry: Entry, executor: Executor) -> str:
@@ -65,18 +66,21 @@ def load_file_source(entry: Entry, executor: Executor) -> str:
     logger.debug(f"Metacatalog entry datasource path: {path}; exists: {path.exists()}")
 
     # go for the different suffixes
-    if path.suffix.lower() in ('.nc', '.netcdf', '.cdf', '.nc4'):
-        # laod the netCDF file time & space chunks to the output folder
+
+    if path.suffix.lower() in ('.nc', '.netcdf', '.cdf', 'nc4'):
+        logger.info("load_file_source identified a netCDF file and will now process it.")
+        # load the netCDF file time & space chunks to the output folder
         out_path = load_netcdf_file(entry, executor=executor)
         
-        # return the dataset
-        return out_path
     elif path.suffix.lower() in ('.tif', '.tiff', '.dem'):
-        logger.error("You tried to process a GeoTiff, which is not supported yet.")
-        raise NotImplementedError('GeoTiff loader is currently not implemented, sorry.')
-    
+        logger.info("load_file_source identified a raster file and will now process it.")
+        out_path = load_raster_file(entry, executor=executor)
     else:
-        raise ValueError(f"Unknown file type for {path.suffix}. This tool does not support these kinds of files (yet).")
+        logger.warning(f"Loading a file source was requested, but the passed file extension '{path.suffix.lower()}' is not recognized.")
+        return None
+
+    # return the dataset path
+    return out_path
 
 
 def load_netcdf_file(entry: Entry, executor: Executor) -> str:
@@ -166,6 +170,7 @@ def load_netcdf_file(entry: Entry, executor: Executor) -> str:
 
     # return the out_path
     return str(dataset_base_path)
+
 
 def _clip_netcdf_cdo(path: Path, params: Params):
     # get the output name
@@ -258,46 +263,140 @@ def _clip_netcdf_xarray(entry: Entry, file_name: str, data: xr.Dataset, params: 
     return region
 
 
-def load_raster_file(entry: Entry, name: str, reference_area: dict, base_path: str = '/out') -> rio.DatasetReader:
-    #DAS hier passt noch nicht zum workflow
-    #Eher alle load Funktionen dispatchen? not sure
-    # build a GeoDataFrame from the reference area
-    df = gpd.GeoDataFrame.from_features([reference_area])
+def load_raster_file(entry: Entry, executor: Executor) -> str:
+    # load the params
+    params = load_params()
+
+    # get the reference area
+    reference_area = params.reference_area_df
+
+    # get a path for the current dataset path
+    dataset_base_path = params.dataset_path / f"{entry.variable.name.replace(' ', '_')}_{entry.id}"
+
+    # create the base path
+    dataset_base_path.mkdir(parents=True, exist_ok=True)
+
+    # get the file name from the source
+    source_file_name = entry.datasource.path
+    source_path = Path(source_file_name)
+    
+    # figure out if there is a * in the name, or the name is a directory
+    if '*' in source_file_name:
+        names = glob.glob(source_file_name)
+    elif source_path.is_dir():
+        names = [str(name) for name in source_path.glob('*')]
+    else:
+        names = [source_file_name]
+    
+    # filter
+    fnames = [name for name in names if Path(name).suffix.lower() in ('.tif', '.tiff', '.dem')]
+    
+    # info
+    logger.info(f"Exploded the final list of raster tiles to : {fnames}")
+
+    # define an error handler
+    def error_handler(future):
+        exc = future.exception()
+        if exc is not None:
+            logger.error(f"ERRORED: clipping dataset <ID={entry.id}>: {str(exc)}")
+    
+    # collect all futures
+    futures = []
+    # go for each file
+    for i, fname in enumerate(fnames):
+        # derive an out-name
+        out_name = None if len(fnames) == 1 else f"{Path(fname).stem}_part_{i + 1}.tif"
+        # submit each save task to the executor
+        future = executor.submit(_rio_clip_raster, fname, reference_area, dataset_base_path, out_name=out_name, touched=params.cell_touches)
+        future.add_done_callback(error_handler)
+        futures.append(future)
+    
+    # wait until all are finished
+    tiles = [future.result() for future in futures if future.result() is not None]
+    
+    # run the merge function and delete the other files
+    if len(tiles) > 1:
+        logger.debug('Starting WhitboxTools mosaic operation...')
+        _wbt_merge_raster(dataset_base_path, f"{entry.variable.name.replace(' ', '_')}_{entry.id}.tif")
+
+        # remove the tiles
+        for tile in tiles:
+            Path(tile).unlink()
+    
+    # check if there is exactly one tile
+    elif len(tiles) == 1:
+        # rename the file
+        new_name = dataset_base_path / f"{entry.variable.name.replace(' ', '_')}_{entry.id}.tif"
+        Path(tiles[0]).rename(new_name)
+        tiles = [str(new_name)]
+    else:
+        logger.warning(f'No tiles were clipped for the reference area. It might not be covered by dataset <ID={entry.id}>')
+
+    # save the metadata
+    metafile_name = str(params.dataset_path / f"{entry.variable.name.replace(' ', '_')}_{entry.id}.metadata.json")
+    entry_metadata_saver(entry, metafile_name)
+    logger.info(f"Saved metadata for dataset <ID={entry.id}> to {metafile_name}.")
+
+    # some logging
+    return str(dataset_base_path)
+    
+
+def _rio_clip_raster(file_name: str, reference_area: gpd.GeoDataFrame, base_path: Path, out_name: str = None, touched: bool = False):
+    t1 = time.time()
 
     # open the raster file using rasterio
-    if '*' in name:
-        fnames = glob.glob(name)
-    else:
-        fnames = [name]
-    
-    # check the amount of files to be processed
-    if len(fnames) > 1:
-        logger.debug(f"For {name} found {len(fnames)} files.")
-    elif len(fnames) == 0:
-        logger.warning(f"Could not find any files for {name}.")
-        return None
-    else:
-        logger.debug(f"Resource {name} is single file.")
+    with rio.open(file_name, 'r') as src:
+        # figure out a nodata value
+        nodata = src.nodata
+        if nodata is None:
+            nodata = -9999
+        # do the masking
+        try:
+            out_raster, out_transform = rio.mask.mask(src, reference_area.geometry, crop=True, all_touched=touched, nodata=nodata)
+        except ValueError as e:
+            if 'Input shapes do not overlap raster' in str(e):
+                logger.debug(f"Skipping {file_name} as it does not overlap with the reference area.")
+                return None
+            else:
+                logger.exception(f"An unexpected error occured: {str(e)}")
 
-    # preprocess each file
-    for fname in fnames:
-        t1 = time.time()
-        with rio.open(fname, 'r') as src:
-            # do the mask
-            
-            out_raster, out_transform = rio.mask.mask(src, [df.geometry.values], crop=True)
+        # save the out meta
+        out_meta = src.meta.copy()
 
-            # save the masked raster to the output folder
-            out_meta = src.meta.copy()
-        
         # update the metadata
         out_meta.update({
             "height": out_raster.shape[1],
             "width": out_raster.shape[2],
-            "transform": out_transform
+            "transform": out_transform,
+            "nodata": nodata
         })
 
-        # save the raster
-        out_path = Path(base_path) / Path(fname).name
-        with rio.open(str(out_path), 'w', **out_meta) as dst:
-            dst.write(out_raster)
+    # finally save the raster
+    if out_name is None:
+        out_path = base_path / Path(file_name).name
+    else:
+        out_path = base_path / out_name
+
+    with rio.open(str(out_path), 'w', **out_meta) as dst:
+        dst.write(out_raster)
+    
+    t2 = time.time()
+    logger.info(f"Clipped {file_name} to {out_path} in {t2-t1:.2f} seconds.")
+
+    # return the output path
+    return str(out_path)
+
+def _wbt_merge_raster(input_folder: Path, out_name: str):
+    # initialize the whitebox tools
+    wbt = WhiteboxTools()
+    wbt.set_verbose_mode(True)
+
+    # this could be mirrored in the params
+    wbt.set_compress_rasters(True)
+
+    # set whitebox path to the newly created folder
+    wbt.set_working_dir(str(input_folder))
+
+    # run the mosaic tool on the raster source
+    wbt.mosaic(output=out_name, method="nn", callback=whitebox_log_handler)
+    
