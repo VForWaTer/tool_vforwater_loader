@@ -24,7 +24,7 @@ RUN pip install ipython==8.26.0 \
                 pyarrow==14.0.1 \
                 ydata-profiling==4.6.4 \
                 # linux AArch64 extensions are not available for 0.9.2 -> 0.10.0 is released early Feb. 2024
-                duckdb==0.8.0 \
+                "duckdb>=1.0.0" \
                 polars==0.19.19 \
                 geocube
 
@@ -48,7 +48,7 @@ RUN mv /whitebox/WhiteboxTools_linux_amd64/WBT /src/WBT
 #  first line checks the architecture, and replaces x86_64 with amd64, which is what duckdb uses
 RUN arch=$(uname -m | sed s/x86_64/amd64/) && \     
     mkdir /duck && \
-    wget https://github.com/duckdb/duckdb/releases/download/v0.8.0/duckdb_cli-linux-${arch}.zip && \
+    wget https://github.com/duckdb/duckdb/releases/download/v1.0.0/duckdb_cli-linux-${arch}.zip && \
     unzip duckdb_cli-linux-${arch}.zip && \
     rm duckdb_cli-linux-${arch}.zip && \
     chmod +x ./duckdb && \
