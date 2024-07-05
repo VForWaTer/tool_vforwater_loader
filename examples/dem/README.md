@@ -1,12 +1,6 @@
 # Copernicus DEM example
 
-This example incldues a installer service that loads an example Copernicus 30m-DEM for Baden-Württemberg
-to metacatalog. 
-
-Other than the HYRAS example, the script **does not download** the DEM to the folder, as you need to authenticate
-to be able to download. Once you have a DEM, put it in the `./data/raster/DEM` folder, as the upload notebook uses
-a hard-coded `/data/raster/DEM/*.tif` path (mounted inside the container) to find the files. If you store the data 
-somewhere else, you need to change the mount point in the docker compose file.
+This example incldues a installer service that loads an example Copernicus 30m-DEM for Baden-Württemberg to metacatalog.
 
 To install the example, run:
 
@@ -31,5 +25,5 @@ Long story short: To run one of the examples, with the `/examples/dem` compose c
 
 ```
 cd examples/dem
-docker compose run --rm dede210080_loader python run.py
+docker compose run --rm de210080_loader python run.py
 ```
