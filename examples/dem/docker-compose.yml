@@ -12,6 +12,11 @@ services:
       - 5433:5432
     volumes:
       - ../../data/pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "sh -c 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}'"]
+      interval: 50s
+      timeout: 10s
+      retries: 5
 
   installer:
     build:
@@ -20,7 +25,8 @@ services:
     links:
       - db
     depends_on: 
-      - db 
+      db:
+        condition: "service_healthy"
     environment:
       METACATALOG_URI: postgresql://postgres:postgres@db:5432/metacatalog
       DATA_FILE_PATH: /data/raster
@@ -39,6 +45,9 @@ services:
       dockerfile: Dockerfile
     links:
       - db
+    depends_on:
+      installer:
+        condition: "service_completed_successfully"
     environment:
       METACATALOG_URI: postgresql://postgres:postgres@db:5432/metacatalog
     command: ["echo", "run the tool like 'docker compose run --rm loader python run.py'"]
@@ -58,6 +67,9 @@ services:
       dockerfile: Dockerfile
     links:
       - db
+    depends_on:
+      installer:
+        condition: "service_completed_successfully"
     environment:
       METACATALOG_URI: postgresql://postgres:postgres@db:5432/metacatalog
     command: ["echo", "run the tool like 'docker compose run --rm de210080_loader python run.py'"]
@@ -73,6 +85,9 @@ services:
       dockerfile: Dockerfile
     links:
       - db
+    depends_on:
+      installer:
+        condition: "service_completed_successfully"
     environment:
       METACATALOG_URI: postgresql://postgres:postgres@db:5432/metacatalog
     command: ["echo", "run the tool like 'docker compose run --rm open_filed python run.py'"]
