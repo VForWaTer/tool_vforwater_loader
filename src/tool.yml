@@ -1,6 +1,6 @@
 tools:
   vforwater_loader:
-    title: Loader for datasets stored in a metacatalog instance 
+    title: Dataset Loader
     description: |
       This tool will use `metacatalog` to load datasets stored in a metacatalog instance, like V-FOR-WaTer.
       The requested datasources will be made available in the output directory of the tool. Areal datasets
@@ -76,12 +76,3 @@ tools:
           If the dataset is areal and the parameter is set, the dataset will be resampled to the given resolution.
           Note: Right now, the aggregations can only write parquet files. For larger (espeically spatio-temporal) datasets, these
           aggreations can be large. A future version will write netCDF or Zarr for these cases.
-      connection:
-        type: string
-        optional: true
-        description: | 
-          THIS OPTION IS DEPRECATED. PLEASE SET THE ENVIRONMENT VARIABLE METACATALOG_URI INSTEAD.
-          To connect to the V-FOR-WaTer database, you need to provide a connection URI. These URIs should be saved to an evnironment variable
-          called `VFW_POSTGRES_URI`. Alternatively, you can pass in a file path to an `.env` file that contains the connection URI. 
-          Passing the string directly as this parameter is technically also possible, but not recommended.
-      

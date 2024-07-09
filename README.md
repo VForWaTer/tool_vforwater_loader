@@ -59,7 +59,6 @@ tables are listed accordingly and license information is extracted and presented
 | keep_data_files | If set to `false`, the data files clipped to the spatial and temporal scale will not be kept. |
 | precision | The precision for aggregations along the temporal scale of the datasets. |
 | resolution | The resolution of the output data. This parameter is only relevant for areal datasets. |
-| connection | The connection URI to the MetaCatalog instance. |
 
 
 ## Development and local run

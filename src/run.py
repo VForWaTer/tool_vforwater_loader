@@ -20,6 +20,9 @@ import reporter
 from clip import reference_area_to_file
 from version import __version__
 
+# always load .env files
+load_dotenv()
+
 # parse parameters
 kwargs = get_parameter()
 
@@ -30,20 +33,8 @@ toolname = os.environ.get('TOOL_RUN', 'vforwater_loader').lower()
 if toolname != 'vforwater_loader':
     raise AttributeError(f"[{dt.now().isocalendar()}] Either no TOOL_RUN environment variable available, or '{toolname}' is not valid.\n")
 
-
 # use the pydantic model to handle the input parameters
-params = load_params(**kwargs)
-
-# check if a connection was given and if it is a valid path
-# this is handled extra to keep the pydantic model simpler
-if 'connection' in kwargs:
-    if Path(kwargs['connection']).exists():
-        load_dotenv(dotenv_path=kwargs['connection'])
-    else:
-        # it is interpreted as a connection uri
-        connection = kwargs['connection']
-else:
-    load_dotenv()
+params = load_params(**kwargs)   
 
 # check if a connection evironment variable is given
 if 'VFW_POSTGRES_URI' in os.environ:

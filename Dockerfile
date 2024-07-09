@@ -54,6 +54,9 @@ RUN arch=$(uname -m | sed s/x86_64/amd64/) && \
     chmod +x ./duckdb && \
     mv ./duckdb /duck/duckdb
 
+# pre-install the spatial extension into duckdb as it will be used
+RUN /duck/duckdb -c "INSTALL spatial;"
+
 # go to the source directory of this tool
 WORKDIR /src
 CMD ["python", "run.py"]
