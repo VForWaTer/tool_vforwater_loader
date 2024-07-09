@@ -54,6 +54,9 @@ class Params(BaseModel):
     base_path: str = '/out'
     netcdf_backend: NetCDFBackends = NetCDFBackends.XARRAY
 
+    # duckdb settings
+    use_spatial: bool = False
+
     @property
     def dataset_path(self) -> Path:
         if self.keep_data_files:
