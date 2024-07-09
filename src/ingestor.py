@@ -255,7 +255,7 @@ def load_xarray_to_duckdb(entry: Entry, data: xr.Dataset) -> str:
     
     # get a delayed dask dataframe
     try:
-        ddf = data.to_dask_dataframe()[dimension_names]
+        ddf = data.to_dask_dataframe()[dimension_names].dropna()
     except ValueError as e:
         # check this is the chunking error
         if 'Object has inconsistent chunks' in str(e):
