@@ -142,7 +142,7 @@ else:
     logger.warning("It seems like no data files have been processed. This might be an error.")
 
 # switch the type of integrations
-if params.integration != Integrations.NONE:
+if params.integration != Integrations.NONE and params.apply_aggregation:
     with PoolExecutor() as executor:
         logger.debug(f"START {type(executor).__name__} - Pool to ingest data files into a Dataset DuckDB database.")
 
@@ -150,11 +150,11 @@ if params.integration != Integrations.NONE:
             # run the temporal aggregation
             aggregator.aggregate_scale(aggregation_scale='temporal', executor=executor)
         
-        if params.integration == Integrations.SPATIAL or params.integration == Integrations.ALL:
+        if params.integration == Integrations.SPATIAL or params.integration == Integrations.ALL and False:
             # run the spatial aggregation
             aggregator.aggregate_scale(aggregation_scale='spatial', executor=executor)
         
-        if params.integration == Integrations.SPATIO_TEMPORAL or params.integration == Integrations.ALL:
+        if params.integration == Integrations.SPATIO_TEMPORAL or params.integration == Integrations.ALL and False:
             # run the spatio-temporal aggregation
             aggregator.aggregate_scale(aggregation_scale='spatiotemporal', executor=executor)
 
