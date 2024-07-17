@@ -76,3 +76,11 @@ tools:
           If the dataset is areal and the parameter is set, the dataset will be resampled to the given resolution.
           Note: Right now, the aggregations can only write parquet files. For larger (espeically spatio-temporal) datasets, these
           aggreations can be large. A future version will write netCDF or Zarr for these cases.
+      apply_aggregation:
+        type: boolean
+        optional: true
+        description: |
+          If set to `true`, the tool will apply the aggregation as defined in the metadata (precision and resoplution). 
+          If set to `false` (default), the tool will not apply any aggregation while loading. In these casesm the integrated dataset will be available,
+          which is a duckdb instance that holds macros for aggregation. Thus, you can adjust the precision and resolution later on.
+          The main downside for duckdb instances is that they take up more disk space, than aggregated datasets.

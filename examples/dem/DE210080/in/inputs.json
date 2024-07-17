@@ -4,7 +4,7 @@
             "dataset_ids": [
                 38
             ],
-            "integration": "none",
+            "integration": "spatial",
             "reference_area": {
                 "type": "Feature",
                 "properties": {

@@ -14,7 +14,7 @@ services:
       - ../../data/pg_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "sh -c 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}'"]
-      interval: 50s
+      interval: 5s
       timeout: 10s
       retries: 5
 

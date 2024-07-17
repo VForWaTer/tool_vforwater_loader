@@ -40,6 +40,7 @@ class Params(BaseModel):
     start_date: datetime = None
     end_date: datetime = None
     integration: Integrations = Integrations.ALL
+    apply_aggregation: bool = False
 
     # optional parameter to configure output
     keep_data_files: bool = True
