@@ -2,7 +2,7 @@
 FROM python:3.10.13
 
 # install the toolbox runner tools
-RUN pip install json2args==0.6.1
+RUN pip install json2args==0.7.0
 
 # Install GDAL which will be used by geopandas
 RUN pip install --upgrade pip
@@ -44,6 +44,9 @@ RUN mkdir /out
 RUN mkdir /src
 COPY ./src /src
 RUN mv /whitebox/WhiteboxTools_linux_amd64/WBT /src/WBT
+
+# copy the citation file - looks funny to make COPY not fail if the file is not there
+COPY ./CITATION.cf[f] /src/CITATION.cff
 
 # download a precompiled binary of duckdb
 #  first line checks the architecture, and replaces x86_64 with amd64, which is what duckdb uses

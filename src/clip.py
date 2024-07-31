@@ -9,7 +9,7 @@ import xarray as xr
 from pyproj import CRS
 from geocube.api.core import make_geocube
 
-from logger import logger
+from json2args.logger import logger
 from param import load_params
 
 

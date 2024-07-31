@@ -5,7 +5,7 @@ import pandas as pd
 from ydata_profiling import ProfileReport
 
 from param import load_params
-from logger import logger
+from json2args.logger import logger
 
 
 def generate_profile_report(file_name: str) -> None:
