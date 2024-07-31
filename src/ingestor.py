@@ -9,7 +9,7 @@ import xarray as xr
 import duckdb
 from metacatalog.models import Entry
 
-from logger import logger
+from json2args.logger import logger
 from param import load_params
 
 SPATIAL_DIMENSIONS = ('lon', 'lat', 'z')

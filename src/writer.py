@@ -13,7 +13,7 @@ import polars as pl
 import pandas as pd
 import xarray as xr
 
-from logger import logger
+from json2args.logger import logger
 
 
 # create a union of all supported Dataframe types

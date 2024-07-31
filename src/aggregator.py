@@ -7,7 +7,7 @@ import duckdb
 import polars as pl
 
 from param import load_params
-from logger import logger
+from json2args.logger import logger
 from writer import dispatch_result_saver
 
 class AggregationMacros(TypedDict):

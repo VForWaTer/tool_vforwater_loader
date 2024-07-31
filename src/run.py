@@ -13,7 +13,7 @@ from tqdm import tqdm
 
 from param import load_params, Integrations
 from loader import load_entry_data
-from logger import logger
+from json2args.logger import logger
 import ingestor
 import aggregator
 import reporter

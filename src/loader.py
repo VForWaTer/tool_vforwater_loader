@@ -11,7 +11,7 @@ import pandas as pd
 import geopandas as gpd
 import rasterio as rio
 
-from logger import logger
+from json2args.logger import logger
 from writer import dispatch_save_file, entry_metadata_saver
 from param import load_params, Params
 from utils import whitebox_log_handler
@@ -315,22 +315,22 @@ def load_raster_file(entry: Entry, executor: Executor) -> str:
     tiles = [future.result() for future in futures if future.result() is not None]
     
     # run the merge function and delete the other files
-    if len(tiles) > 1:
-        logger.debug('Starting WhitboxTools mosaic operation...')
-        _wbt_merge_raster(dataset_base_path, f"{entry.variable.name.replace(' ', '_')}_{entry.id}.tif")
+    # if len(tiles) > 1:
+    #     logger.debug('Starting WhitboxTools mosaic operation...')
+    #     _wbt_merge_raster(dataset_base_path, f"{entry.variable.name.replace(' ', '_')}_{entry.id}.tif")
 
-        # remove the tiles
-        for tile in tiles:
-            Path(tile).unlink()
+    #     # remove the tiles
+    #     for tile in tiles:
+    #         Path(tile).unlink()
     
-    # check if there is exactly one tile
-    elif len(tiles) == 1:
-        # rename the file
-        new_name = dataset_base_path / f"{entry.variable.name.replace(' ', '_')}_{entry.id}.tif"
-        Path(tiles[0]).rename(new_name)
-        tiles = [str(new_name)]
-    else:
-        logger.warning(f'No tiles were clipped for the reference area. It might not be covered by dataset <ID={entry.id}>')
+    # # check if there is exactly one tile
+    # elif len(tiles) == 1:
+    #     # rename the file
+    #     new_name = dataset_base_path / f"{entry.variable.name.replace(' ', '_')}_{entry.id}.tif"
+    #     Path(tiles[0]).rename(new_name)
+    #     tiles = [str(new_name)]
+    # else:
+    #     logger.warning(f'No tiles were clipped for the reference area. It might not be covered by dataset <ID={entry.id}>')
 
     # save the metadata
     metafile_name = str(params.dataset_path / f"{entry.variable.name.replace(' ', '_')}_{entry.id}.metadata.json")

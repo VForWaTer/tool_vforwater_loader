@@ -1,4 +1,4 @@
-from logger import logger
+from json2args.logger import logger
 
 # define a handler for whiteboxgis tools verbose output
 def whitebox_log_handler(msg: str):
