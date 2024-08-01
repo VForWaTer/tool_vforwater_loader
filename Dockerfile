@@ -1,5 +1,5 @@
 # Pull any base image that includes python3
-FROM python:3.10.13
+FROM python:3.12.4
 
 # install the toolbox runner tools
 RUN pip install json2args==0.7.0
@@ -17,17 +17,17 @@ RUN mkdir /whitebox && \
 # install dependecies for this tool
 RUN pip install \
     ipython==8.26.0 \ 
-    "pandas<=2.0.0" \
-    geopandas==0.14.2 \
+    pandas==2.2.2 \
+    geopandas==1.0.1 \
     python-dotenv==1.0.0 \
-    xarray[complete]==2023.6.0 \ 
-    rioxarray==0.15.0 \
-    pyarrow==14.0.1 \
-    ydata-profiling==4.6.4 \
+    xarray[complete]==2024.7.0 \ 
+    rioxarray==0.17.0 \
+    pyarrow==17.0.0 \
+    ydata-profiling==4.9.0 \
     # linux AArch64 extensions are not available for 0.9.2 -> 0.10.0 is released early Feb. 2024
     "duckdb>=1.0.0" \
     polars-lts-cpu==1.1.0 \
-    geocube
+    geocube==0.6.0
 
 # install the needed version for metacatalog
 RUN pip install metacatalog==0.9.1
