@@ -11,10 +11,10 @@ from dotenv import load_dotenv
 from metacatalog import api
 from tqdm import tqdm
 
-from param import load_params, Integrations
+from param import load_params, Integrations, IngestorBackend
 from loader import load_entry_data
 from json2args.logger import logger
-import ingestor
+import duck_ingestor
 import aggregator
 import reporter
 from clip import reference_area_to_file
@@ -102,6 +102,8 @@ if params.reference_area is not None:
 file_mapping = []
 with PoolExecutor() as executor:
     logger.debug(f"START {type(executor).__name__} - Pool to load and clip data source files.")
+    logger.info(f"A total of {len(params.dataset_ids)} are requested. Start loading data sources.")
+    
     for dataset_id in tqdm(params.dataset_ids):
         try:
             entry = api.find_entry(session, id=dataset_id, return_iterator=True).one()
@@ -131,11 +133,17 @@ if params.integration == Integrations.NONE:
 
 # check if we have any files to process
 elif len(file_mapping) > 0:
-    logger.info(f"Starting to create a consistent DuckDB dataset at {params.database_path}. Check out https://duckdb.org/docs/api/overview to learn more about DuckDB.")
-    
     # start a timer 
     t1 = time.time()
-    path = ingestor.load_files(file_mapping=file_mapping)
+
+    # check which backend to use
+    if params.ingestor_backend == IngestorBackend.DUCKDB:
+        logger.info(f"Starting to create a consistent DuckDB dataset at {params.database_path}. Check out https://duckdb.org/docs/api/overview to learn more about DuckDB.")
+        path = duck_ingestor.load_files(file_mapping=file_mapping)
+    else:
+        logger.info(f"Starting to create a consistent DataCube dataset at {params.database_path}.")
+        raise NotImplementedError
+    
     t2 = time.time()
     logger.info(f"Finished creating the dataset at {path} in {t2-t1:.2f} seconds.")
 else:

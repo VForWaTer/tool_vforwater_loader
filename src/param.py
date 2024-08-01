@@ -31,6 +31,11 @@ class NetCDFBackends(str, Enum):
     PARQUET = 'parquet'
 
 
+class IngestorBackend(str, Enum):
+    DUCKDB = 'duckdb'
+    XARRAY = 'xarray'
+
+
 class Params(BaseModel):
     # mandatory inputs are the dataset ids and the reference area
     dataset_ids: List[int]
@@ -54,6 +59,7 @@ class Params(BaseModel):
     # stuff that we do not change in the tool
     base_path: str = '/out'
     netcdf_backend: NetCDFBackends = NetCDFBackends.XARRAY
+    ingestor_backend: IngestorBackend = IngestorBackend.DUCKDB
 
     # duckdb settings
     use_spatial: bool = False
