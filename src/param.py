@@ -15,25 +15,11 @@ from pydantic import BaseModel, Field
 import geopandas as gpd
 
 
-# create the Enum for integration type
-class Integrations(str, Enum):
-    TEMPORAL = 'temporal'
-    SPATIAL = 'spatial'
-    SPATIO_TEMPORAL = 'spatiotemporal'
-    ALL = 'all'
-    NONE = 'none'
-    FULL = 'full'
-
 
 class NetCDFBackends(str, Enum):
     XARRAY = 'xarray'
     CDO = 'cdo'
     PARQUET = 'parquet'
-
-
-class IngestorBackend(str, Enum):
-    DUCKDB = 'duckdb'
-    XARRAY = 'xarray'
 
 
 class Params(BaseModel):
@@ -44,32 +30,17 @@ class Params(BaseModel):
     # optional parameters to configure the processing
     start_date: datetime = None
     end_date: datetime = None
-    integration: Integrations = Integrations.ALL
-    apply_aggregation: bool = False
-
-    # optional parameter to configure output
-    keep_data_files: bool = True
-    database_name: str = 'dataset.duckdb'
-
-    # optional parameter to provide result output
-    precision: str = 'day'
-    resolution: int = 5000
     cell_touches: bool = True
 
     # stuff that we do not change in the tool
     base_path: str = '/out'
+    dataset_folder_name: str = 'datasets'
     netcdf_backend: NetCDFBackends = NetCDFBackends.XARRAY
-    ingestor_backend: IngestorBackend = IngestorBackend.DUCKDB
-
-    # duckdb settings
-    use_spatial: bool = False
 
     @property
     def dataset_path(self) -> Path:
-        if self.keep_data_files:
-            p = Path(self.base_path) / 'datasets'
-        else:
-            p = Path(tempfile.mkdtemp())
+        # set the databsets path
+        p = Path(self.base_path) / self.dataset_folder_name
         
         # make the directory if it does not exist
         p.mkdir(parents=True, exist_ok=True)
@@ -85,10 +56,6 @@ class Params(BaseModel):
 
         return p
     
-    @property
-    def database_path(self) -> Path:
-        return Path(self.base_path) / self.database_name
-
     @property
     def reference_area_df(self) -> gpd.GeoDataFrame:
         return gpd.GeoDataFrame.from_features([self.reference_area])
