@@ -14,38 +14,18 @@ This tool follows the [Tool Specification](https://vforwater.github.io/tool-spec
 [MetaCatalog](https://github.com/vforwater/metacatalog) stores metadata about internal and external datasets along with
 information about the data sources and how to access them. Using this tool, one can request datasets (called *entries* in MetaCatalog) by their **id**. Additionally, an area of interest is supplied as a GeoJSON feature, called **reference area**.
 
-The tool involves three main processing steps, of which only the first one is mandatory.
-
-1. The database of the connected MetaCatalog instance is queried for the `dataset_ids`. The data-files are reuqested for 
+The database of the connected MetaCatalog instance is queried for the `dataset_ids`. The data-files are reuqested for 
 the temporal extent of `start_date` and `end_date` if given, while the spatial extent is requested for the bounding box
 of `reference_area`. MetaCatalog entires without either of the scales defined are loaded entierly.
 Finally, the spatial extent is clipped by the `reference_area` to match exactly. Experimental parameters are not yet 
 exposed, but involve:
+
     - `netcdf_backend`, which can be either `'CDO'` or `'xarray'` (default) can switch the software used for the clip
     of NetCDF data sources, which are commonly used for spatio-temporal datasets.
-    - `touches` is a boolean that is `false` by default and configures if areal grid cells are considered part of 
-    `reference_area` if they touch (`touches=true`) or only contain the grid center (`touches=false`).
+
 All processed data-files for each source are then saved to `/out/datasets/`, while multi-file sources are saved to
 child repositories. The file (or folder) names are built like: `<variable_name>_<entry_id>`.
 
-2. The second step is only performed if the parameter `integration` is **not** set to `none`.
-All available data sources are converted to long-format, where each atomic data value is indexed by the value of the
-axes, that form the spatial and temporal scales (if given). These files are loaded into a DuckDB, that is exported as
-`/out/dataset.db` along with all metadata from MetaCatalog as JSON, and a number of database MACROs for aggregations
-along the scale axes. 
-For each data integration defined as `integration` (one of `['temporal', 'spatial', 'spatiotemporal']`), the MACRO is
-executed and the result is saved to `/out/results/<variable_name>_<entry_id>_<aggregation_scale>_aggs.parquet` containing
-aggregations to all statistical moments, quartiles, the sum, Shannon Entropy and a histogram.
-The means are further joined into a common `/out/results/mean_<aggregation_scale>_aggs.parquet` as the main result 
-outputs. The aggregation is configured via `precision` (temporal) and `resolution` (spatial). The final database
-can still be used to execute other aggregations, outside of the context of this tool.
-
-3. The last step can only be run, if the second step was performed successfully. As of now, two finishing report-like
-documents are created. First [YData Profiling](https://docs.profiling.ydata.ai/latest/) is run on the 
-`/out/results/mean_temporal_aggs.parquet` to create a time-series exploratory data analysis (EDA) report. It is 
-availabe in HTML and JSON format.
-The second document is a `/out/README.md`, which is created at runtime from the data in the database. Thus, the data 
-tables are listed accordingly and license information is extracted and presented as available in the MetaCatalog instance.
 
 ### Parameters
 
@@ -55,11 +35,7 @@ tables are listed accordingly and license information is extracted and presented
 | reference_area | A valid GeoJSON POLYGON Feature. Areal datasets will be clipped to this area. |
 | start_date | The start date of the dataset, if a time dimension applies to the dataset. |
 | end_date | The end date of the dataset, if a time dimension applies to the dataset. |
-| integration | The mode of operation for integrating all data files associated with each data source into a common DuckDB-based dataset. |
-| keep_data_files | If set to `false`, the data files clipped to the spatial and temporal scale will not be kept. |
-| precision | The precision for aggregations along the temporal scale of the datasets. |
-| resolution | The resolution of the output data. This parameter is only relevant for areal datasets. |
-
+| cell_touches | Specifies if an areal cell is part of the reference area if it only touches the geometry. |
 
 ## Development and local run
 
@@ -125,11 +101,13 @@ Each container needs at least the following structure:
 |- src/
 |  |- tool.yml
 |  |- run.py
+|  |- CITATION.cff
 ```
 
 * `inputs.json` are parameters. Whichever framework runs the container, this is how parameters are passed.
 * `tool.yml` is the tool specification. It contains metadata about the scope of the tool, the number of endpoints (functions) and their parameters
 * `run.py` is the tool itself, or a Python script that handles the execution. It has to capture all outputs and either `print` them to console or create files in `/out`
+* `CITATION.cff` Citation file providing bibliographic information on how to cite this tool.
 
 *Does `run.py` take runtime args?*:
 
