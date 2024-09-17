@@ -12,7 +12,7 @@ import geopandas as gpd
 import rasterio as rio
 
 from json2args.logger import logger
-from writer import dispatch_save_file, entry_metadata_saver
+from writer import dispatch_save_file, entry_metadata_saver, xarray_to_netcdf_saver
 from param import load_params, Params
 from utils import whitebox_log_handler
 
@@ -112,8 +112,10 @@ def load_netcdf_file(entry: Entry, executor: Executor) -> str:
     # get a path for the current dataset path
     dataset_base_path = params.dataset_path / f"{entry.variable.name.replace(' ', '_')}_{entry.id}"
 
+    # create a counter for the saved parts
+    part = 0
     # preprocess each netcdf / grib / zarr file
-    for i, fname in enumerate(fnames):
+    for fname in fnames:
         # read the min and max time and check if we can skip
         ds = xr.open_dataset(fname, decode_coords='all', mask_and_scale=True)
 
@@ -157,13 +159,19 @@ def load_netcdf_file(entry: Entry, executor: Executor) -> str:
         # and supress the creation of metadata files
         dataset_base_path.mkdir(parents=True, exist_ok=True)
         
-        # get the filenmae
-        filename = f"{entry.variable.name.replace(' ', '_')}_{entry.id}"
-        target_name = f"{filename}_part_{i + 1}.nc"
+        # we will actually save, so increate the part counter
+        part += 1
 
-        dispatch_save_file(entry=entry, data=data, executor=executor, base_path=str(dataset_base_path), target_name=target_name, save_meta=False)
+        # get the filename
+        filename = f"{entry.variable.name.replace(' ', '_')}_{entry.id}"
+        target_name = f"{filename}_part_{part}.nc"
+        
+        # use the dispatch_save_file function to save the data
+        # dispatch_save_file(entry=entry, data=data, executor=executor, base_path=str(dataset_base_path), target_name=target_name, save_meta=False)
+        xarray_to_netcdf_saver(data=data, target_name=str(dataset_base_path / target_name))
+        
         # if there are many files, we save the metadata only once
-        if i == 0:
+        if part == 1:
             metafile_name = str(params.dataset_path / f"{filename}.metadata.json")
             entry_metadata_saver(entry, metafile_name)
             logger.info(f"Saved metadata for dataset <ID={entry.id}> to {metafile_name}.")
@@ -301,18 +309,30 @@ def load_raster_file(entry: Entry, executor: Executor) -> str:
             logger.error(f"ERRORED: clipping dataset <ID={entry.id}>: {str(exc)}")
     
     # collect all futures
-    futures = []
+    # futures = []
+    
+    part = 1
+    
     # go for each file
-    for i, fname in enumerate(fnames):
+    for fname in fnames:
         # derive an out-name
-        out_name = None if len(fnames) == 1 else f"{Path(fname).stem}_part_{i + 1}.tif"
+        if len(fnames) == 1:
+            out_name = f"{entry.variable.name.replace(' ', '_')}_{entry.id}.tif"
+        else:
+            out_name = f"{entry.variable.name.replace(' ', '_')}_{entry.id}_part_{part}.tif"
+        
         # submit each save task to the executor
-        future = executor.submit(_rio_clip_raster, fname, reference_area, dataset_base_path, out_name=out_name, touched=params.cell_touches)
-        future.add_done_callback(error_handler)
-        futures.append(future)
+        #future = executor.submit(_rio_clip_raster, fname, reference_area, dataset_base_path, out_name=out_name, touched=params.cell_touches)
+        #future.add_done_callback(error_handler)
+        #futures.append(future)
+
+        # call procedurally
+        out_path = _rio_clip_raster(fname, reference_area, base_path=dataset_base_path, out_name=out_name, touched=params.cell_touches)
+        if out_path is not None:
+            part += 1
     
     # wait until all are finished
-    tiles = [future.result() for future in futures if future.result() is not None]
+    #tiles = [future.result() for future in futures if future.result() is not None]
     
     # run the merge function and delete the other files
     # if len(tiles) > 1:

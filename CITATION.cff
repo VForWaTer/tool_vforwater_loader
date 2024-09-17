@@ -9,7 +9,7 @@ type: software
 authors:
   - given-names: Mirko
     family-names: Mälicke
-    email: mirko.maelicke@KIT.edu
+    email: mirko.maelicke@kit.edu
     affiliation: >-
       Institute for Water and Environment, Hydrology,
       Karlsruhe Institute for Technology (KIT)
@@ -28,7 +28,6 @@ abstract: >-
   The requested datasources will be made available in the output directory of the tool. Areal datasets
   will be clipped to the **bounding box** of the reference area and multi-file sources are preselected
   to fall into the time range specified. 
-  Note that exact extracts (specific time step, specific area) are not yet supported for areal datasets.
 keywords:
   - docker
   - tool-spec
@@ -38,5 +37,5 @@ keywords:
   - catchment
   - metacatalog
 license: CC-BY-4.0
-version: '0.9.3'
-date-released: '2024-07-31'
+version: '0.10.0'
+date-released: '2024-09-17'
