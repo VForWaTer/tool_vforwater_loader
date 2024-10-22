@@ -7,14 +7,14 @@ from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor as PoolExecutor
 
 from json2args import get_parameter
+from json2args.logger import logger
 from dotenv import load_dotenv
 from metacatalog import api
 from tqdm import tqdm
 
 from param import load_params
 from loader import load_entry_data
-from json2args.logger import logger
-from clip import reference_area_to_file
+from utils import reference_area_to_file
 from version import __version__
 
 # always load .env files
