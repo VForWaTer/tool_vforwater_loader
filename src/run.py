@@ -1,9 +1,7 @@
 import os
-import sys
 import platform
 from datetime import datetime as dt
 import time
-from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor as PoolExecutor
 
 from json2args import get_parameter
