@@ -1,0 +1,73 @@
+services:
+  db:
+    image: postgis/postgis:15-3.4
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: metacatalog
+    expose:
+      - 5432
+    ports:
+      - 5433:5432
+    volumes:
+      - ../../data/ismn_dev/pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "sh -c 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}'"]
+      interval: 5s
+      timeout: 1s
+      retries: 10
+
+  installer:
+    build:
+      context: ../../
+      dockerfile: Dockerfile
+    links:
+      - db
+    depends_on:
+        db:
+            condition: "service_healthy"
+    environment:
+      METACATALOG_URI: postgresql://postgres:postgres@db:5432/metacatalog
+      DATA_DIR: /tool_init/init/data
+    command: ["python", "/src/pg_init/init.py"]
+    volumes:
+      - ../../data/raster:/data/raster
+      - ../../examples/ismn:/tool_init
+    
+  loader:
+    build:
+      context: ../../
+      dockerfile: Dockerfile
+    links:
+      - db
+    depends_on:
+        installer:
+            condition: "service_completed_successfully"
+    environment:
+      METACATALOG_URI: postgresql://postgres:postgres@db:5432/metacatalog
+    command: ["echo", "run the tool like 'docker compose run --rm loader python run.py'"]
+    volumes:
+      - ../../in:/in
+      - ../../out:/out
+      - ../../data/raster:/data/raster
+
+
+# The example
+  de910180_loader:
+    build:
+      context: ../../
+      dockerfile: Dockerfile
+    links:
+      - db
+    depends_on:
+        installer:
+            condition: "service_completed_successfully"
+    environment:
+      METACATALOG_URI: postgresql://postgres:postgres@db:5432/metacatalog
+    command: ["echo", "run the tool like 'docker compose run --rm loader python run.py'"]
+    volumes:
+      - ./DE910180/in:/in
+      - ./DE910180/out:/out
+      #- ../../data/raster:/data/raster
+      - ../../src:/src
+
