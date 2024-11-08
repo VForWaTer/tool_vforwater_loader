@@ -136,4 +136,6 @@ examples/hyras/**/in
 examples/*/**/out
 examples/hyras/scripts
 examples/hyras/init/*ipynb
+examples/dem/init/*ipynb
+examples/ismn/init/data
 .vscode
