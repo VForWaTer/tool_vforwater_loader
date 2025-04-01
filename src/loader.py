@@ -1,10 +1,11 @@
+import sys
 import glob
 import subprocess
 import time
 from concurrent.futures import Executor
 from pathlib import Path
 
-from metacatalog.models import Entry
+from metacatalog_api.models import Metadata
 import rioxarray
 import xarray as xr
 import pandas as pd
@@ -13,30 +14,31 @@ import rasterio as rio
 
 from json2args.logger import logger
 from writer import dispatch_save_file, entry_metadata_saver, xarray_to_netcdf_saver
-from param import load_params, Params
+from param import Params
 from utils import whitebox_log_handler
 
+sys.path.append('/whitebox/')
 from WBT.whitebox_tools import WhiteboxTools
 
 # Maybe this function becomes part of metacatalog core or a metacatalog extension
-def load_entry_data(entry: Entry, executor: Executor) -> str:
+def load_entry_data(entry: Metadata, executor: Executor, params: Params) -> str:
     # 1. get the path to the datasource
     path_type = entry.datasource.type.name
 
     # if the type is internal or external, we need to use the load_sql_source
     if path_type in ('internal', 'external'):
-        data_path = load_sql_source(entry, executor=executor)
+        data_path = load_sql_source(entry, executor=executor, params=params)
     # TODO: here we can be explicite about data source types
     else:
-        data_path = load_file_source(entry, executor=executor)
+        data_path = load_file_source(entry, executor=executor, params=params)
 
     # Return the data path to the entry-level dataset
     return data_path
 
 
-def load_sql_source(entry: Entry, executor: Executor) -> str:
+def load_sql_source(entry: Metadata, executor: Executor, params: Params) -> str:
     # load the params
-    params = load_params()
+    # params = load_params()
 
     # if the source is external, we can't use it right now, as it is not clear
     # yet if the Datasource.path is the connection or the path inside the database
@@ -53,11 +55,11 @@ def load_sql_source(entry: Entry, executor: Executor) -> str:
     return target_name
 
 
-def load_http_source(entry: Entry):
+def load_http_source(entry: Metadata):
     raise NotImplementedError("HTTP datasources are not supported yet.")
 
 
-def load_file_source(entry: Entry, executor: Executor) -> str:
+def load_file_source(entry: Metadata, executor: Executor, params: Params) -> str:
     # create a Path from the name
     name = entry.datasource.path
     path = Path(name)
@@ -66,15 +68,14 @@ def load_file_source(entry: Entry, executor: Executor) -> str:
     logger.debug(f"Metacatalog entry datasource path: {path}; exists: {path.exists()}")
 
     # go for the different suffixes
-
     if path.suffix.lower() in ('.nc', '.netcdf', '.cdf', 'nc4'):
         logger.info("load_file_source identified a netCDF file and will now process it.")
         # load the netCDF file time & space chunks to the output folder
-        out_path = load_netcdf_file(entry, executor=executor)
+        out_path = load_netcdf_file(entry, executor=executor, params=params)
         
     elif path.suffix.lower() in ('.tif', '.tiff', '.dem'):
         logger.info("load_file_source identified a raster file and will now process it.")
-        out_path = load_raster_file(entry, executor=executor)
+        out_path = load_raster_file(entry, executor=executor, params=params)
     else:
         logger.warning(f"Loading a file source was requested, but the passed file extension '{path.suffix.lower()}' is not recognized.")
         return None
@@ -83,9 +84,9 @@ def load_file_source(entry: Entry, executor: Executor) -> str:
     return out_path
 
 
-def load_netcdf_file(entry: Entry, executor: Executor) -> str:
+def load_netcdf_file(entry: Metadata, executor: Executor, params: Params) -> str:
     # load the params
-    params = load_params()
+    # params = load_params()
 
     # get the file name
     name = entry.datasource.path
@@ -209,7 +210,7 @@ def _clip_netcdf_cdo(path: Path, params: Params):
     return str(out_name)
 
 
-def _clip_netcdf_xarray(entry: Entry, file_name: str, data: xr.Dataset, params: Params):
+def _clip_netcdf_xarray(entry: Metadata, file_name: str, data: xr.Dataset, params: Params):
     if data.rio.crs is None:
         logger.error(f"Could not clip {data} as it has no CRS.")
         
@@ -271,9 +272,9 @@ def _clip_netcdf_xarray(entry: Entry, file_name: str, data: xr.Dataset, params: 
     return region
 
 
-def load_raster_file(entry: Entry, executor: Executor) -> str:
+def load_raster_file(entry: Metadata, executor: Executor, params: Params) -> str:
     # load the params
-    params = load_params()
+    # params = load_params()
 
     # get the reference area
     reference_area = params.reference_area_df

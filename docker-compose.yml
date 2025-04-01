@@ -5,36 +5,22 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: metacatalog
+    platform: linux/amd64
     expose:
       - 5432
     ports:
       - 5433:5432
     volumes:
       - ./data/pg_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "sh -c 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}'"]
-      interval: 50s
-      timeout: 10s
-      retries: 5
+    # healthcheck:
+    #   test: ["CMD-SHELL", "sh -c 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}'"]
+    #   interval: 30s
+    #   timeout: 1s
+    #   retries: 3
+    #   start_period: 50s
+    #   start_interval: 1s
 
-  installer:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    links:
-      - db
-    depends_on:
-        db:
-            condition: "service_healthy"
-    environment:
-      METACATALOG_URI: postgresql://postgres:postgres@db:5432/metacatalog
-      DATA_FILE_PATH: /data/raster
-    command: ["python", "/src/pg_init/init.py"]
-    volumes:
-      - ./in:/in
-      - ./out:/out
-      - ./data/raster:/data/raster
-      - ./init:/tool_init
+
     
   loader:
     build:
@@ -42,9 +28,9 @@ services:
       dockerfile: Dockerfile
     links:
       - db
-    depends_on:
-        installer:
-            condition: "service_completed_successfully"
+    # depends_on:
+    #     db:
+    #         condition: "service_completed_successfully"
     environment:
       METACATALOG_URI: postgresql://postgres:postgres@db:5432/metacatalog
     command: ["echo", "The tool can be started using 'docker compose run --rm loader python run.py'"]
@@ -52,3 +38,4 @@ services:
       - ./in:/in
       - ./out:/out
       - ./data/raster:/data/raster
+      - ./src:/src

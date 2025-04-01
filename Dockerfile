@@ -12,7 +12,9 @@ RUN pip install GDAL==$(gdal-config --version | awk -F'[.]' '{print $1"."$2}')
 # Install whitebox gis
 RUN mkdir /whitebox && \
     cd /whitebox && wget https://www.whiteboxgeo.com/WBT_Linux/WhiteboxTools_linux_amd64.zip && \
-    unzip WhiteboxTools_linux_amd64.zip
+    unzip WhiteboxTools_linux_amd64.zip && \
+    mv WhiteboxTools_linux_amd64/WBT /whitebox/WBT && \
+    rm -rf WhiteboxTools_linux_amd64.zip WhiteboxTools_linux_amd64
 
 # install dependecies for this tool
 RUN pip install \
@@ -27,10 +29,9 @@ RUN pip install \
     # linux AArch64 extensions are not available for 0.9.2 -> 0.10.0 is released early Feb. 2024
     #"duckdb>=1.0.0" \
     polars-lts-cpu==1.1.0 \
-    geocube==0.6.0
-
-# install the needed version for metacatalog
-RUN pip install metacatalog==0.9.2
+    geocube==0.6.0 \
+    tqdm==4.67.0 \
+    metacatalog_api==0.4.4
 
 # Install CDO, might be used to do seltimestep or sellonlatbox and possibly merge
 #RUN apt-get install -y gettext=0.21-12 \
@@ -43,7 +44,6 @@ COPY ./in /in
 RUN mkdir /out
 RUN mkdir /src
 COPY ./src /src
-RUN mv /whitebox/WhiteboxTools_linux_amd64/WBT /src/WBT
 
 # copy the citation file - looks funny to make COPY not fail if the file is not there
 COPY ./CITATION.cf[f] /src/CITATION.cff

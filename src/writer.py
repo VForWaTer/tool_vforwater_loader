@@ -7,7 +7,7 @@ import json
 from decimal import Decimal
 import shutil
 
-from metacatalog.models import Entry
+from metacatalog_api.models import Metadata
 from dask.dataframe import DataFrame as DaskDataFrame
 import polars as pl
 import pandas as pd
@@ -32,7 +32,7 @@ class EntryDictSerializer(json.JSONEncoder):
         return super().default(obj)
 
 # TODO: target path should be createable from the outside
-def dispatch_save_file(entry: Entry, data: DataFrame | xr.Dataset, executor: Executor, base_path: str = '/out', target_name: Optional[str] = None, save_meta: bool = True) -> Future:
+def dispatch_save_file(entry: Metadata, data: DataFrame | xr.Dataset, executor: Executor, base_path: str = '/out', target_name: Optional[str] = None, save_meta: bool = True) -> Future:
     # get the target_name
     if target_name is None:
         target_path = Path(base_path) / f"{entry.variable.name.replace(' ', '_')}_{entry.id}"
@@ -124,18 +124,15 @@ def xarray_to_netcdf_saver(data: xr.Dataset, target_name: str) -> str:
     return target_name
 
 
-def entry_metadata_saver(entry: Entry, target_name: str) -> str:
-    # get the dictionary
-    entry_dict = entry.to_dict(deep=True, stringify=False)
-
-    # create the json with the custom serializer
+def entry_metadata_saver(entry: Metadata, target_name: str) -> str:
+    entry_json = entry.model_dump_json(indent=4)
     with open(target_name, 'w') as f:
-        json.dump(entry_dict, f, cls=EntryDictSerializer, indent=4)
-    
+        f.write(entry_json)
+
     return target_name
 
 
-def raw_data_copy_saver(entry: Entry, target_name: Union[str, Path]) -> str:
+def raw_data_copy_saver(entry: Metadata, target_name: Union[str, Path]) -> str:
     # warn the user
     logger.warning(f"Datasource <ID={entry.id}> is falling back to raw data-copy, as this tool does not include a specified writer. Let's hope the best.")
     

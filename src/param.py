@@ -59,15 +59,3 @@ class Params(BaseModel):
     @property
     def reference_area_df(self) -> gpd.GeoDataFrame:
         return gpd.GeoDataFrame.from_features([self.reference_area])
-
-
-# manage a single instance to this class
-__SINGLETON: Params = None
-def load_params(**kwargs) -> Params:
-    global __SINGLETON
-    # create if needed
-    if __SINGLETON is None:
-        __SINGLETON = Params(**kwargs)
-    
-    # return
-    return __SINGLETON

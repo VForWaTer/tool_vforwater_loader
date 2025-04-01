@@ -3,7 +3,7 @@ from pathlib import Path
 import geopandas as gpd
 from json2args.logger import logger
 
-from param import load_params
+from param import Params
 
 # define a handler for whiteboxgis tools verbose output
 def whitebox_log_handler(msg: str):
@@ -17,8 +17,8 @@ def whitebox_log_handler(msg: str):
         logger.debug(f"WhiteboxTools info: {msg}")
 
 
-def reference_area_to_file(add_ascii: bool = False) -> str:
-    params = load_params()
+def reference_area_to_file(params: Params, add_ascii: bool = False) -> str:
+    # params = load_params()
 
     # create a geodataframe
     df = gpd.GeoDataFrame.from_features([params.reference_area])
