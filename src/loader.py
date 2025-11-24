@@ -21,14 +21,16 @@ sys.path.append('/whitebox/')
 from WBT.whitebox_tools import WhiteboxTools
 
 # Maybe this function becomes part of metacatalog core or a metacatalog extension
-def load_entry_data(entry: Metadata, executor: Executor, params: Params) -> str:
+def load_entry_data(entry: Metadata, executor: Executor, params: Params) -> str | None:
+    if entry.datasource is None:
+        raise ValueError("Entry datasource is not set.")
+    
     # 1. get the path to the datasource
     path_type = entry.datasource.type.name
 
     # if the type is internal or external, we need to use the load_sql_source
     if path_type in ('internal', 'external'):
         data_path = load_sql_source(entry, executor=executor, params=params)
-    # TODO: here we can be explicite about data source types
     else:
         data_path = load_file_source(entry, executor=executor, params=params)
 
@@ -37,8 +39,8 @@ def load_entry_data(entry: Metadata, executor: Executor, params: Params) -> str:
 
 
 def load_sql_source(entry: Metadata, executor: Executor, params: Params) -> str:
-    # load the params
-    # params = load_params()
+    if entry.datasource is None:
+        raise ValueError("Entry datasource is not set.")
 
     # if the source is external, we can't use it right now, as it is not clear
     # yet if the Datasource.path is the connection or the path inside the database
@@ -59,7 +61,10 @@ def load_http_source(entry: Metadata):
     raise NotImplementedError("HTTP datasources are not supported yet.")
 
 
-def load_file_source(entry: Metadata, executor: Executor, params: Params) -> str:
+def load_file_source(entry: Metadata, executor: Executor, params: Params) -> str | None:
+    if entry.datasource is None:
+        raise ValueError("Entry datasource is not set.")
+
     # create a Path from the name
     name = entry.datasource.path
     path = Path(name)
@@ -84,9 +89,72 @@ def load_file_source(entry: Metadata, executor: Executor, params: Params) -> str
     return out_path
 
 
+def load_csv_file(entry: Metadata, executor: Executor, params: Params) -> str:
+    if entry.datasource is None:
+        raise ValueError("Entry datasource is not set.")
+
+    source_file_name = entry.datasource.path
+    source_path = Path(source_file_name)
+
+    if '*' in source_file_name:
+        fnames = glob.glob(source_file_name)
+    elif source_path.is_dir():
+        fnames = [str(name) for name in source_path.glob('*')]
+    else:
+        fnames = [source_file_name]
+
+    # filter
+    fnames = [name for name in fnames if Path(name).suffix.lower() in ('csv', 'tsv', 'txt', 'dat')]
+
+    logger.info(f"Exploded the final list of CSV files to : {fnames}")
+
+    column_names = entry.datasource.variable_names
+    has_tstamp, min_tstamp, max_tstamp = False, None, None
+    if entry.datasource.temporal_scale is not None:
+        column_names = [*entry.datasource.temporal_scale.dimension_names, *column_names]
+        has_tstamp = True
+        min_tstamp = pd.to_datetime(entry.datasource.temporal_scale.extent[0])
+        max_tstamp = pd.to_datetime(entry.datasource.temporal_scale.extent[1])
+
+    if entry.datasource.spatial_scale is not None:
+        column_names = [*column_names, *entry.datasource.spatial_scale.dimension_names]
+    
+    if entry.datasource.args is not None:
+        args = {'usecols': column_names, **entry.datasource.args}
+    else:
+        args = {'usecols': column_names}
+    if has_tstamp:
+        args['parse_dates'] = [entry.datasource.temporal_scale.dimension_names[0]]
+    
+
+    data = pd.DataFrame(columns=column_names)
+    for fname in fnames:
+        try:
+            df = pd.read_csv(fname, **args)
+        except Exception as e:
+            logger.error(f"Error reading {fname}: {str(e)}")
+            continue
+
+        if has_tstamp:
+            if min_tstamp > df.index.values.max() or max_tstamp < df.index.values.min():
+                logger.debug(f"Skipping {fname} as it is not in the time range: {min_tstamp} - {max_tstamp}")
+                continue
+        # concat
+        data = pd.concat([data, df])
+    
+    # finished, if we have a timestamp index, we sort asc
+    if has_tstamp:
+        data.sort_index(ascending=True, inplace=True)
+    
+    # save the data
+    target_name = f"{entry.variable.name.replace(' ', '_')}_{entry.id}.csv"
+    dispatch_save_file(entry=entry, data=data, executor=executor, base_path=str(params.dataset_path), target_name=target_name, save_meta=True)
+    return target_name
+   
+
 def load_netcdf_file(entry: Metadata, executor: Executor, params: Params) -> str:
-    # load the params
-    # params = load_params()
+    if entry.datasource is None:
+        raise ValueError("Entry datasource is not set.")
 
     # get the file name
     name = entry.datasource.path
@@ -211,6 +279,9 @@ def _clip_netcdf_cdo(path: Path, params: Params):
 
 
 def _clip_netcdf_xarray(entry: Metadata, file_name: str, data: xr.Dataset, params: Params):
+    if entry.datasource is None:
+        raise ValueError("Entry datasource is not set.")
+
     if data.rio.crs is None:
         logger.error(f"Could not clip {data} as it has no CRS.")
         
@@ -273,8 +344,8 @@ def _clip_netcdf_xarray(entry: Metadata, file_name: str, data: xr.Dataset, param
 
 
 def load_raster_file(entry: Metadata, executor: Executor, params: Params) -> str:
-    # load the params
-    # params = load_params()
+    if entry.datasource is None:
+        raise ValueError("Entry datasource is not set.")
 
     # get the reference area
     reference_area = params.reference_area_df
