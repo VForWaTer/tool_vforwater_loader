@@ -74,7 +74,7 @@ def load_file_source(entry: Metadata, executor: Executor, params: Params) -> str
     logger.debug(f"Metacatalog entry datasource path: {path}; exists: {path.exists()}")
 
     # go for the different suffixes
-    if path.suffix.lower() in (".nc", ".netcdf", ".cdf", "nc4"):
+    if path.suffix.lower() in (".nc", ".netcdf", ".cdf", ".nc4"):
         logger.info("load_file_source identified a netCDF file and will now process it.")
         # load the netCDF file time & space chunks to the output folder
         out_path = load_netcdf_file(entry, executor=executor, params=params)
