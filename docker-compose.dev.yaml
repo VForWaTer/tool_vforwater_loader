@@ -1,0 +1,14 @@
+services:
+  tool:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./in:/in
+      - ./out:/out
+      - ./data/raster:/data/raster
+      - ../metacatalog-api/data/dev/metacatalog-data:/root/metacatalog-data
+      - ./src:/src
+    environment:
+      METACATALOG_URI: postgresql://postgres:postgres@host.docker.internal:5433/metacatalog
+    command: ["echo", "The tool can be started using 'docker compose run --rm tool python run.py'"]
