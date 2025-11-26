@@ -452,7 +452,7 @@ def load_raster_file(entry: Metadata, executor: Executor, params: Params) -> str
     return str(dataset_base_path)
 
 
-def _rio_clip_raster(file_name: str, reference_area: gpd.GeoDataFrame, base_path: Path, out_name: str = None, touched: bool = False):
+def _rio_clip_raster(file_name: str, reference_area: gpd.GeoDataFrame, base_path: Path, out_name: str | None = None, touched: bool = False) -> str | None:
     t1 = time.time()
 
     # open the raster file using rasterio
