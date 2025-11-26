@@ -6,8 +6,8 @@
                 2,
                 19
             ],
-            "start_date": "2000-01-01T12:00:00+01",
-            "end_date": "2014-01-01T12:00:00+01",
+            "start_date": "2000-01-01T12:00:00+01:00",
+            "end_date": "2014-01-01T12:00:00+01:00",
             "reference_area": {
                 "type": "Feature",
                 "geometry": {
