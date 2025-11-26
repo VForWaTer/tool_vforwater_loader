@@ -119,11 +119,11 @@ def dataframe_to_csv_saver(data: DataFrame, target_name: str) -> str:
         data.to_csv(target_name, index=True)
     elif isinstance(data, DaskDataFrame):
         for partition in data.partitions:
-            partition.compute().to_csv(target_name, append=True, index=True)
+            partition.compute().to_csv(target_name, index=True)
     elif isinstance(data, pl.DataFrame):
         data.write_csv(target_name)
     else:
-        logger.error(f"Could not save {target_name} as it is not a pandas or dask dataframe. Got a {type(data)} instead.")
+        logger.error(f"Could not save {target_name} as it is not a pandas, polars or dask dataframe. Got a {type(data)} instead.")
     t2 = time.time()
 
     logger.info(f"Finished writing {target_name} after {t2 - t1:.2f} seconds.")
