@@ -27,7 +27,7 @@ class Params(BaseModel):
     dataset_ids: list[int]
 
     # optional parameters to configure the processing
-    reference_area: dict = Field(repr=False, default=None)
+    reference_area: dict | None = Field(repr=False, default=None)
     start_date: datetime = None
     end_date: datetime = None
     cell_touches: bool = True
