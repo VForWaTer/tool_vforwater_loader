@@ -7,6 +7,9 @@ RUN pip install json2args==0.7.0
 # Install GDAL which will be used by geopandas
 RUN pip install --upgrade pip
 RUN apt-get update && apt-get install -y gdal-bin libgdal-dev
+# Install numpy first (required for GDAL build)
+RUN pip install numpy
+# Install GDAL matching the system version
 RUN pip install GDAL==$(gdal-config --version | awk -F'[.]' '{print $1"."$2}')
 
 # Install whitebox gis
