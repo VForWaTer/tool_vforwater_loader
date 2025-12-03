@@ -1,16 +1,16 @@
 # Pull any base image that includes python3
-FROM python:3.12.4
+FROM python:3.11
 
-# install the toolbox runner tools
-RUN pip install json2args==0.7.0
 
-# Install GDAL which will be used by geopandas
 RUN pip install --upgrade pip
 RUN apt-get update && apt-get install -y gdal-bin libgdal-dev
-# Install numpy first (required for GDAL build)
-RUN pip install numpy
-# Install GDAL matching the system version
-RUN pip install GDAL==$(gdal-config --version | awk -F'[.]' '{print $1"."$2}')
+
+# pin NumPy < 2 to avoid build issues
+RUN pip install "numpy<2"
+
+# build GDAL bindings matching system version, without build isolation
+RUN pip install --no-build-isolation "GDAL==3.6.2"
+
 
 # Install whitebox gis
 RUN mkdir /whitebox && \
@@ -20,21 +20,21 @@ RUN mkdir /whitebox && \
     rm -rf WhiteboxTools_linux_amd64.zip WhiteboxTools_linux_amd64
 
 # install dependecies for this tool
+
+
 RUN pip install \
+    json2args==0.7.0 \
     ipython==8.26.0 \ 
     pandas==2.2.2 \
     geopandas==1.0.1 \
     python-dotenv==1.0.0 \
-    xarray[complete]==2024.7.0 \ 
+    "xarray[complete]==2024.7.0" \ 
     rioxarray==0.17.0 \
     pyarrow==17.0.0 \
-    #ydata-profiling==4.9.0 \
-    # linux AArch64 extensions are not available for 0.9.2 -> 0.10.0 is released early Feb. 2024
-    #"duckdb>=1.0.0" \
     polars-lts-cpu==1.1.0 \
     geocube==0.6.0 \
     tqdm==4.67.0 \
-    metacatalog_api==0.4.4
+    metacatalog_api==0.4.4 
 
 # Install CDO, might be used to do seltimestep or sellonlatbox and possibly merge
 #RUN apt-get install -y gettext=0.21-12 \
