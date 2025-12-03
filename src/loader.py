@@ -7,10 +7,12 @@ from pathlib import Path
 
 import geopandas as gpd
 import pandas as pd
+import polars as pl
 import rasterio as rio
 import rioxarray
 import xarray as xr
 from json2args.logger import logger
+from metacatalog_api import core
 from metacatalog_api.models import Metadata
 
 from param import Params
@@ -48,13 +50,32 @@ def load_sql_source(entry: Metadata, executor: Executor, params: Params) -> str:
     if entry.datasource.type.name == "external":
         raise NotImplementedError("External database datasources are not supported yet.")
 
-    # we are internal and can request a session to the database
-    # TODO: now this has to be replaced by the new logic where every entry goes into its own table
-    data = entry.get_data(start=params.start_date, end=params.end_date)
+    # build the query
+    columns = entry.datasource.variable_names
+    if entry.datasource.temporal_scale is not None:
+        columns = [*entry.datasource.temporal_scale.dimension_names, *columns]
+    if entry.datasource.spatial_scale is not None:
+        columns = [*columns, *entry.datasource.spatial_scale.dimension_names]
+    if len(columns) == 0:
+        columns = ["*"]
+
+    sql = f"SELECT {', '.join(columns)} FROM {entry.datasource.path} "
+    if entry.datasource.temporal_scale is not None:
+        if params.start_date is not None or params.end_date is not None:
+            dim_name = entry.datasource.temporal_scale.dimension_names[0]
+            filt = []
+            if params.start_date is not None:
+                filt.append(f"{dim_name} >= '{params.start_date}'")
+            if params.end_date is not None:
+                filt.append(f"{dim_name} <= '{params.end_date}'")
+            sql += f" WHERE {' AND '.join(filt)}"
+
+    with core.connect() as session:
+        data = pl.read_database(query=sql, connection=session.bind, **entry.datasource.args)
 
     # dispatch a save task for the data
-    target_name = f"{entry.variable.name.replace(' ', '_')}_{entry.id}"
-    dispatch_save_file(entry=entry, data=data, executor=executor, base_path=str(params.dataset_path), target_name=target_name)
+    target_name = f"{entry.variable.name.replace(' ', '_')}_{entry.id}.csv"
+    dispatch_save_file(entry=entry, data=data, executor=executor, base_path=str(params.dataset_path), target_name=target_name, save_meta=True)
     return target_name
 
 
