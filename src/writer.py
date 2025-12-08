@@ -49,7 +49,7 @@ def dispatch_save_file(
     def exception_handler(future: Future):
         exc = future.exception()
         if exc is not None:
-            logger.error(f"ERRORED on saving dataset <ID={entry.id}> to {target_path}")
+            logger.error(f"ERRORED on saving dataset <ID={entry.id}> to {target_path}\n{exc}")
         elif save_meta:
             # save the metadata
             metafile_name = f"{target_path}.metadata.json"
