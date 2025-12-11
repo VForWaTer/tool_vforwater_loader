@@ -323,23 +323,50 @@ def _clip_netcdf_xarray(entry: Metadata, file_name: str, data: xr.Dataset, param
         raise ValueError("Entry datasource is not set.")
 
     if data.rio.crs is None:
-        logger.error(f"Could not clip {data} as it has no CRS.")
+        logger.error(f"Could not infer CRS from dataset {file_name} (entry ID={entry.id})")
+        logger.error(f"Dataset dimensions: {list(data.dims)}")
+        logger.error(f"Dataset coordinates: {list(data.coords)}")
+        logger.error(f"Dataset data variables: {list(data.data_vars)}")
 
-        # TODO: how to handle this case?
-        return data
+        has_lat_lon_coords = ("latitude" in data.coords and "longitude" in data.coords) or ("lat" in data.coords and "lon" in data.coords)
+        has_lat_lon_vars = (
+            ("latitude" in data.data_vars and "longitude" in data.data_vars)
+            or ("lat" in data.data_vars and "lon" in data.data_vars)
+            or ("latitudes" in data.data_vars and "longitudes" in data.data_vars)
+        )
+
+        if has_lat_lon_coords:
+            logger.warning("Dataset has lat/lon coordinates but no CRS. Setting CRS to EPSG:4326 (WGS84) for clipping.")
+            data.rio.write_crs(4326, inplace=True)
+        elif has_lat_lon_vars:
+            logger.warning("Dataset has lat/lon as data variables but no CRS. Assigning as coordinates and setting CRS to EPSG:4326 (WGS84) for clipping.")
+            if "latitudes" in data.data_vars and "longitudes" in data.data_vars:
+                data = data.assign_coords(latitude=data.data_vars["latitudes"], longitude=data.data_vars["longitudes"])
+            elif "latitude" in data.data_vars and "longitude" in data.data_vars:
+                data = data.assign_coords(latitude=data.data_vars["latitude"], longitude=data.data_vars["longitude"])
+            elif "lat" in data.data_vars and "lon" in data.data_vars:
+                data = data.assign_coords(lat=data.data_vars["lat"], lon=data.data_vars["lon"])
+            data.rio.write_crs(4326, inplace=True)
+        else:
+            logger.error("Dataset has no CRS and no lat/lon coordinate axes or data variables. Cannot clip.")
+            return data
     else:
         # inform the user that we are processing the file using xarray
-        logger.info(f"Processing {file_name} in python using rioxarray and xarray (source <ID={entry.id}>)...")
+        logger.info(f"Processing {file_name} in Python using rioxarray and xarray (source ID={entry.id})...")
 
     # start a timer
     t1 = time.time()
 
-    # extract only the data variable
-    # TODO maybe activate this via a parameter?
-    # variable_names = entry.datasource.variable_names
-    # ds = data[variable_names].copy()
-    # logger.info(f"python - ds = data[{variable_names}].copy()")
-    ds = data
+    # extract only the needed variables and coordinates
+    variable_names = entry.datasource.variable_names
+    if True:
+        ds = data[variable_names].copy()
+        for coord in data.coords:
+            if coord not in ds.coords:
+                ds = ds.assign_coords({coord: data.coords[coord]})
+        logger.debug(f"Extracted variables: {variable_names}")
+    else:
+        ds = data
 
     # first go for the lonlatbox clip
     ref = params.reference_area_df
