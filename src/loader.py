@@ -1,6 +1,7 @@
 import glob
 import subprocess
 import sys
+import os
 import time
 from concurrent.futures import Executor
 from pathlib import Path
@@ -16,7 +17,7 @@ from metacatalog_api import core
 from metacatalog_api.models import Metadata
 
 from param import Params
-from utils import whitebox_log_handler
+from utils import whitebox_log_handler, parse_catchment_id
 from writer import dispatch_save_file, entry_metadata_saver, xarray_to_netcdf_saver
 
 sys.path.append("/whitebox/")
@@ -189,7 +190,10 @@ def load_csv_file(entry: Metadata, executor: Executor, params: Params) -> str:
             data = data.loc[time_slice]
 
     # save the data
-    target_name = f"{entry.variable.name.replace(' ', '_')}_{entry.id}.csv"
+    catchment_id = parse_catchment_id(source_path)
+    target_name = f"{os.path.basename(source_path).rsplit('_', 1)[0]}_{catchment_id}.csv"
+    logger.info(f" ENTRY ID : {target_name}")
+    # target_name = f"{entry.variable.name.replace(' ', '_')}_{entry.id}.csv"
     dispatch_save_file(entry=entry, data=data, executor=executor, base_path=str(params.dataset_path), target_name=target_name, save_meta=True)
     return target_name
 

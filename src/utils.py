@@ -1,5 +1,5 @@
 from pathlib import Path
-
+import os
 import geopandas as gpd
 from json2args.logger import logger
 
@@ -33,3 +33,12 @@ def reference_area_to_file(params: Params, add_ascii: bool = False) -> str:
         df.get_coordinates().to_csv(path, sep=' ', header=False, index=False)
 
     return str(path)
+
+def parse_catchment_id(file_path: str) -> str:
+    """
+    Extract catchment ID from filename.
+    Example:
+    CAMELS_DE_discharge_sim_DE910910.csv -> DE910910
+    """
+    fname = os.path.basename(file_path)
+    return fname.rsplit("_", 1)[-1].replace(".csv", "").strip()
