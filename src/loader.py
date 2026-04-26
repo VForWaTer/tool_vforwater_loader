@@ -60,7 +60,14 @@ def load_sql_source(entry: Metadata, executor: Executor, params: Params) -> str:
     if len(columns) == 0:
         columns = ["*"]
 
-    sql = f"SELECT {', '.join(columns)} FROM {entry.datasource.path} "
+    # sql = f"SELECT {', '.join(columns)} FROM {entry.datasource.path} "
+    args = dict(entry.datasource.args or {})
+
+    flat_table = args.pop("flat_table", None)
+    source_table = flat_table or entry.datasource.path
+
+    sql = f"SELECT {', '.join(columns)} FROM {source_table} "
+
     if entry.datasource.temporal_scale is not None:
         if params.start_date is not None or params.end_date is not None:
             dim_name = entry.datasource.temporal_scale.dimension_names[0]
@@ -72,7 +79,8 @@ def load_sql_source(entry: Metadata, executor: Executor, params: Params) -> str:
             sql += f" WHERE {' AND '.join(filt)}"
 
     with core.connect() as session:
-        data = pl.read_database(query=sql, connection=session.bind, **entry.datasource.args)
+        # data = pl.read_database(query=sql, connection=session.bind, **entry.datasource.args)
+        data = pl.read_database(query=sql, connection=session.bind, **args)
 
     # dispatch a save task for the data
     target_name = f"{entry.variable.name.replace(' ', '_')}_{entry.id}.csv"
@@ -145,10 +153,14 @@ def load_csv_file(entry: Metadata, executor: Executor, params: Params) -> str:
     if entry.datasource.spatial_scale is not None:
         column_names = [*column_names, *entry.datasource.spatial_scale.dimension_names]
 
-    if entry.datasource.args is not None:
-        args = {"usecols": column_names, **entry.datasource.args}
-    else:
-        args = {"usecols": column_names}
+    # if entry.datasource.args is not None:
+    #     args = {"usecols": column_names, **entry.datasource.args}
+    # else:
+    #     args = {"usecols": column_names}
+    
+    args = dict(entry.datasource.args or {})
+    args.pop("flat_table", None)
+    args = {"usecols": column_names, **args}
     if has_tstamp:
         args["parse_dates"] = [tstamp_col]
 
