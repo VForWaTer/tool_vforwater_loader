@@ -39,3 +39,4 @@ services:
       - ./out:/out
       - ./data/raster:/data/raster
       - ./src:/src
+      - /lsdf:/lsdf:ro
